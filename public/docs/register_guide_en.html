@@ -86,38 +86,35 @@
 
     <hr>
 
-    <h2>🚀 Step 1: Install uv</h2>
+    <h2>🖥️ Option 1: Register with btsbots-service Desktop App (Recommended 🌟)</h2>
+    <p><code>btsbots-service</code> is an all-in-one graphical desktop application with an integrated zero-trust key generator and signing guard:</p>
+
+    <ol>
+      <li><strong>Download &amp; Launch btsbots-service</strong>: Download the installer (Linux deb / macOS / Windows) from GitHub releases.</li>
+      <li><strong>Select [Register New] tab</strong>: In the startup authentication gate, choose <strong>Register New</strong>.</li>
+      <li><strong>Enter Details</strong>: Provide your Invite Code, desired BitShares username (8-30 lowercase characters), and set a master protection password.</li>
+      <li><strong>Local Generation &amp; Auto-Broadcast</strong>: Keys are generated locally and securely broadcast to the blockchain.</li>
+      <li><strong>Auto Backup &amp; Daemon Launch</strong>: The app automatically downloads <code>username_credentials.txt</code> and <strong>starts the signing gateway immediately</strong>!</li>
+    </ol>
+
+    <hr>
+
+    <h2>🐍 Option 2: Register with Python CLI</h2>
+
+    <h3>1. Install uv</h3>
     <pre><code># Linux / macOS
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windows (PowerShell)
 powershell -ExecutionUrl https://astral.sh/uv/install.ps1</code></pre>
 
-    <hr>
-
-    <h2>📦 Step 2: Clone &amp; Sync Environment</h2>
+    <h3>2. Clone Repository &amp; Sync Environment</h3>
     <pre><code>git clone https://github.com/pch957/btsbots.git
 cd btsbots
 uv sync</code></pre>
 
-    <hr>
-
-    <h2>🔑 Step 3: Register with Your Invitation Code</h2>
-    <pre><code>uv run registre_account.py --invite BTS-XXXX</code></pre>
-    <ol>
-      <li><strong>Local Key Generation</strong>: Keys (Owner, Active, Memo) are generated securely in memory on your machine.</li>
-      <li><strong>Broadcast via Registrar</strong>: Your public key is broadcast to the BitShares blockchain by your referrer without exposing private keys.</li>
-      <li><strong>Credential File Generated</strong>: A file named <code>username_credentials.txt</code> will be saved locally.</li>
-    </ol>
-
-    <hr>
-
-    <h2>🛡️ Step 4: Login &amp; Start Guardian Gateway</h2>
-    <h3>1. Get 8-Digit OTP for Web Login</h3>
-    <pre><code>uv run get_otp.py --keyfile username_credentials.txt</code></pre>
-
-    <h3>2. Start Background Signing Guardian</h3>
-    <pre><code>uv run sign_bots.py --keyfile username_credentials.txt</code></pre>
+    <h3>3. Run Registration Command</h3>
+    <pre><code>uv run registre_account.py --invite &lt;YOUR_INVITE_CODE&gt;</code></pre>
   </div>
 
   <script>

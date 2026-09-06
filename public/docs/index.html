@@ -125,6 +125,17 @@
       transform: translateY(-2px);
     }
 
+    .link-service {
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+
+    .link-service:hover {
+      background: rgba(59, 130, 246, 0.3);
+      transform: translateY(-2px);
+    }
+
     .link-python {
       background: rgba(245, 158, 11, 0.12);
       color: #fbbf24;
@@ -270,17 +281,20 @@
         <span>⚡</span> BTSBots Knowledge Base
       </div>
       <h1>开发与使用文档中心</h1>
-      <p>探索 BTSBots 去中心化零信任架构、密钥沙盒保护机制、OAuth DID 身份认证、邀请码注册与链上支付接入指南。</p>
+      <p>探索 BTSBots 去中心化零信任架构、桌面签名网关 (btsbots-service)、OAuth DID 身份认证与链上即时支付接入指南。</p>
 
       <div class="quick-links">
         <a href="https://github.com/pch957/btsbots-frontend" target="_blank" rel="noopener noreferrer" class="link-pill link-github">
           <span>🐙</span> 前端/客户端源码 (GitHub)
         </a>
+        <a href="https://github.com/pch957/btsbots-service" target="_blank" rel="noopener noreferrer" class="link-pill link-service">
+          <span>🛡️</span> 桌面签名服务 (btsbots-service)
+        </a>
         <a href="https://github.com/pch957/btsbots-frontend/releases" target="_blank" rel="noopener noreferrer" class="link-pill link-app">
           <span>📲</span> 下载桌面/手机 App (Releases)
         </a>
         <a href="https://github.com/pch957/btsbots" target="_blank" rel="noopener noreferrer" class="link-pill link-python">
-          <span>🐍</span> Python 签名/网关源码 (GitHub)
+          <span>🐍</span> Python 守护脚本 (GitHub)
         </a>
       </div>
     </div>
@@ -306,7 +320,7 @@
         <div>
           <div class="card-icon icon-user">📖</div>
           <h2>用户使用手册</h2>
-          <p>详解 Web 端无私钥架构、Python 进程沙盒、<code>pass</code> 密码管理器、8 位 OTP 登录与自动化风控策略。</p>
+          <p>详解 Web 端无私钥架构、btsbots-service 桌面网关、Python 进程沙盒、8 位 OTP 登录与自动化风控策略。</p>
         </div>
         <div class="card-actions">
           <a href="user_manual.html" class="btn">🇨🇳 中文手册</a>
@@ -348,6 +362,7 @@
     <p>BTSBots Decentralized Ecosystem &copy; 2026 | Project Repositories:</p>
     <p style="margin-top: 6px;">
       <a href="https://github.com/pch957/btsbots-frontend" target="_blank">btsbots-frontend</a> &bull; 
+      <a href="https://github.com/pch957/btsbots-service" target="_blank">btsbots-service</a> &bull; 
       <a href="https://github.com/pch957/btsbots" target="_blank">btsbots-python</a>
     </p>
     <p style="margin-top: 12px;"><a href="../">➔ 返回 BTSBots Web 应用</a></p>

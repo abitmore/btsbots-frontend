@@ -12,7 +12,7 @@ export default defineConfig(() => {
   console.log(`📦 [Vite Compiler] 当前正在全力为 [${appMode.toUpperCase()}] 分配专属打包管道 ➡️ 生成夹: ${outDir}`);
 
   return {
-    base: './',
+    base: '/',
     plugins: [
       tailwindcss(), // 👈 挂载插件
       react()

@@ -70,44 +70,27 @@
     <hr>
 
     <h2>🛡️ 1. Hardcore Security Mechanisms Detailed</h2>
-    <p>BTSBots solves common Web3 threats such as phishing attacks, private key leaks, malicious order-matching scripts, and user misoperations directly at the architectural level:</p>
+    <p>BTSBots solves common Web3 threats such as phishing attacks, private key leaks, and malicious scripts directly at the architectural level:</p>
 
     <h3>1. Zero-Key Web Architecture</h3>
     <ul>
       <li><strong>No WIF Keys in Browsers</strong>: Your physical BitShares Active/Owner WIF keys are never entered or stored in the browser's or mobile app's LocalStorage.</li>
-      <li><strong>Local WebCrypto Session Signatures</strong>: Upon initialization, the web client generates a dedicated ECDSA (P-256) temporary session keypair via standard browser <code>window.crypto.subtle</code> APIs in IndexedDB. All transactions submitted from the web (transfers, limit orders, OAuth authorizations) contain only <strong>signed transaction intents</strong>, which must be audited and approved by your local Python client or proxy before execution.</li>
+      <li><strong>Local WebCrypto Session Signatures</strong>: The web client generates an ephemeral ECDSA (P-256) keypair in IndexedDB. All transactions submitted from the web contain only signed transaction intents, which are audited and signed by <code>btsbots-service</code> (desktop app) or your local Python daemon.</li>
     </ul>
 
-    <h3>2. In-Memory Private Key Sandbox (bots_key.py)</h3>
+    <h3>2. Desktop Guard: btsbots-service User Guide</h3>
+    <p><code>btsbots-service</code> is the modern, graphical signing daemon developed using Tauri and React 19:</p>
     <ul>
-      <li><strong>AES Encrypted Key Buffer</strong>: While running, physical WIF keys remain in memory encrypted as AES-256 byte buffers without ever touching the disk.</li>
-      <li><strong>Unix Fork Process Isolation</strong>: Whenever signing on-chain transactions or decrypting memos, an isolated worker process is spawned via Unix <code>multiprocessing.fork</code>.</li>
-      <li><strong>Zero-Memory Residue Wiping</strong>: After completing ECDSA calculations in isolated memory, the subprocess <strong>overwrites the WIF byte buffer with 0x00 bytes and immediately exits</strong>, preventing third-party Python dependencies from inspecting RAM.</li>
-    </ul>
-
-    <h3>3. Anti-Phishing &amp; Cross-IP Verification</h3>
-    <ul>
-      <li>During OAuth logins or QR payment requests, the system locks and records the public IP address of the initiating web client.</li>
-      <li>Upon receiving a signature request, the Python client strictly matches the client's IP against the response IP. If a man-in-the-middle or proxy hijack is detected, the request is instantly rejected with an alert to prevent phishing sites from stealing identity proofs.</li>
-    </ul>
-
-    <h3>4. Automated Security Strategy &amp; Policy Protection (security_rules.json)</h3>
-    <ul>
-      <li><strong>Fee Limit Safeguard (fee_limit)</strong>: Automatically rejects transactions if the required fee exceeds the threshold (e.g., 10 BTS).</li>
-      <li><strong>Transfer &amp; Market Whitelists</strong>: Restricts outgoing transfers to approved accounts and trading to permitted asset pairs.</li>
-      <li><strong>Sliding Timeframe Volatility Protection (volatility_limit_1h/1d/1w)</strong>: Built-in multi-timeframe geometric deviation calculation. If a limit order price deviates severely from historical executed averages (possibly triggered by malicious scripts), the signing engine refuses to sign, protecting your assets from market manipulation.</li>
-    </ul>
-
-    <h3>5. Local Screen Locking &amp; Account/Asset Filtering</h3>
-    <ul>
-      <li><strong>Independent PIN Lock</strong>: Set a 4-6 digit local PIN code (kept entirely on-device, never transmitted over the network) to authorize transactions or automatically lock after 5 minutes of inactivity.</li>
-      <li><strong>Blacklists &amp; Whitelists</strong>: Blacklisted accounts are automatically hidden from transaction histories; spam tokens can be hidden from asset displays.</li>
+      <li><strong>Encrypted Vault</strong>: Private keys are encrypted locally using PBKDF2 + AES-256-GCM.</li>
+      <li><strong>Web-Style Gated Authentication</strong>: Sensitive views are hidden until login. Unlocking immediately establishes secure sessions and <strong>automatically starts the signing daemon</strong>.</li>
+      <li><strong>Multi-Account Isolated Risk Policies</strong>: Each account has its own independent risk policy configuration (`security_rules_${account}.json`).</li>
+      <li><strong>1-Click 8-Digit OTP Generation</strong>: Generate 8-digit OTP codes instantly to log in on the web without exposing keys.</li>
+      <li><strong>PIN Screen Lock</strong>: Lock your screen with an offline 4-8 digit PIN code or let it auto-lock after 5 minutes of inactivity.</li>
     </ul>
 
     <hr>
 
-    <h2>🚀 2. Environment Setup &amp; Quick Installation</h2>
-    <p>The BTSBots Python client is optimized to run using <strong><code>uv</code></strong>, the modern Python package manager, offering lightning-fast dependency sync and isolated virtual environments.</p>
+    <h2>🚀 2. Python Client Setup &amp; Key Management</h2>
 
     <h3>1. Install uv</h3>
     <pre><code># Linux / macOS
@@ -116,61 +99,26 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # Windows (PowerShell)
 powershell -ExecutionUrl https://astral.sh/uv/install.ps1</code></pre>
 
-    <h3>2. Clone Repository &amp; Install Dependencies</h3>
+    <h3>2. Clone Repository &amp; Sync Environment</h3>
     <pre><code>git clone https://github.com/pch957/btsbots.git
 cd btsbots
-
-# One-step dependency sync with uv
 uv sync</code></pre>
 
-    <h3>3. Configure Security Strategy security_rules.json</h3>
-    <p>Copy the example file and edit it:</p>
-    <pre><code>cp security_rules.json.example security_rules.json</code></pre>
-    <p><code>security_rules.json</code> overview:</p>
-    <pre><code>{ 
-    "description": "BTSBots Account &amp; Pricing Security Strategy Rules",
-    "updated_at": "2026-08-12 19:54:52",
-    "fee_limit": 10,
-    "authorized_keys": [
-        "f928a9f76a372caf489e999b5e2c4eec9fcablbj49bcef9b4a"
-    ],
-    "user_whitelist": {
-        "angel": "1.2.1000",
-        "dan": "1.2.2000"
-    },
-    "market_whitelist": [
-        "CNY/USD", "CNY/BTS", "BTS/USD"
-    ],
-    "volatility_limit_1h": 0.97,
-    "volatility_limit_1d": 0.95,
-    "volatility_limit_1w": 0.90
-}</code></pre>
+    <h3>3. Launching SignBots</h3>
+    <pre><code># Standard interactive mode
+uv run python sign_bots.py
 
-    <hr>
-
-    <h2>🔑 3. Launching Python Client &amp; Key Management</h2>
-
-    <h3>Method 1: Interactive Terminal (No Arguments)</h3>
-    <pre><code>uv run python sign_bots.py</code></pre>
-
-    <h3>Method 2: Using Unix pass Password Store (Recommended 🌟)</h3>
-    <pre><code># 1. Insert credentials into pass
-pass insert bts/my_account
-
-# 2. Launch SignBots with --pass
+# Launch using Unix pass password manager
 uv run python sign_bots.py --pass bts/my_account</code></pre>
 
     <hr>
 
-    <h2>📱 4. Web &amp; Mobile App Integration Guide</h2>
+    <h2>📱 3. Web &amp; Mobile App Integration Guide</h2>
 
-    <h3>1. 8-Digit OTP Fast Login (No Private Keys Needed)</h3>
+    <h3>1. 8-Digit OTP Fast Login</h3>
     <ol>
-      <li>Run <code>get_otp.py</code>:
-        <pre><code>uv run python get_otp.py --pass bts/my_account</code></pre>
-      </li>
-      <li>The terminal displays a temporary 8-digit OTP (e.g., <code>84920138</code>).</li>
-      <li>Enter your account name and this 8-digit OTP on the web login screen to start a secure session instantly without exposing keys!</li>
+      <li>In <code>btsbots-service</code>, open the <strong>⚡ Web Login OTP</strong> tab and generate code (or run <code>uv run python get_otp.py --pass bts/my_account</code>).</li>
+      <li>Enter your account name and this 8-digit OTP on the web login screen to start a secure session instantly!</li>
     </ol>
 
     <h3>2. QR Payments &amp; URI Schemes</h3>

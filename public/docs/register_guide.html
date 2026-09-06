@@ -73,79 +73,57 @@
       <a href="register_guide_en.html" class="nav-btn">English Version 🌐</a>
     </div>
 
-    <h1>🎟️ BTSBots 邀请码注册与新手入门指南</h1>
+    <h1>🎟️ BTSBots 邀请码注册与新用户使用指南</h1>
     <p>欢迎加入 <strong>BTSBots 去中心化生态</strong>！借助比特股区块链的零信任架构与邀请激励网络，您可以拥有完全归属于自己的区块链账户，私钥由您本地直接生成与保管，无需上传给任何中心化服务器。</p>
 
     <!-- 动态邀请码识别横幅 -->
     <div id="inviteBanner" class="invite-banner" style="display: none;">
       <h3>🎉 您的专属注册邀请码已就绪！</h3>
       <p style="margin: 6px 0;">当前邀请码：<strong id="displayInviteCode" style="font-family: monospace; font-size: 18px; color: #34d399;"></strong></p>
-      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 10px 0;">已自动为您生成专属的一键注册终端命令：</p>
+      <p style="font-size: 13px; color: #94a3b8; margin: 4px 0 10px 0;">已自动为您生成专属的一键注册命令：</p>
       <pre><code id="customCommand"></code></pre>
       <button class="copy-btn" onclick="copyCommand()">📋 复制一键注册命令</button>
     </div>
 
     <hr>
 
-    <h2>🚀 第一步：安装极速 Python 工具 uv</h2>
-    <p>BTSBots 采用现代化的 Python 工具包，建议使用 <code>uv</code> 进行极速安装与依赖同步：</p>
+    <h2>🖥️ 方式一：使用 btsbots-service 图形客户端注册（首选推荐 🌟）</h2>
+    <p><code>btsbots-service</code> 是为桌面用户打造的开箱即用图形化客户端，内置全套零信任私钥生成与签名风控引擎：</p>
 
+    <ol>
+      <li><strong>下载并打开 btsbots-service</strong>：在 releases 页面下载对应系统的安装包（Linux deb / macOS / Windows）。</li>
+      <li><strong>进入【注册新号】面板</strong>：启动后在初始登录门禁卡片中选择<strong>【注册新号】</strong>。</li>
+      <li><strong>填写注册信息</strong>：
+        <ul>
+          <li><strong>邀请码</strong>：输入您的推荐人邀请码（例如 <code>BTS-9A4B8F21</code>）。</li>
+          <li><strong>新用户名</strong>：输入 8-30 位小写英文开头的账号名（如 <code>mybtsaccount</code>）。</li>
+          <li><strong>设定保护密码</strong>：设置用于加密保存本地私钥的解锁口令。</li>
+        </ul>
+      </li>
+      <li><strong>自动离线生成与上链</strong>：点击【提交注册并直接登录】，程序在本地内存生成 Owner/Active/Memo 密钥对，由推荐人代付链上手续费完成开户。</li>
+      <li><strong>凭证自动下载与守护启动</strong>：系统会自动在本地下载 <code>mybtsaccount_credentials.txt</code> 密钥备份，同时<strong>自动启动签名网关</strong>！您可随时在【⚡ 网页登录 OTP】中生成验证码登录网页端。</li>
+    </ol>
+
+    <hr>
+
+    <h2>🐍 方式二：使用 Python 命令行工具注册</h2>
+    <p>适合服务器管理员、量化开发者以及习惯在终端操作的高级用户：</p>
+
+    <h3>1. 安装极速 Python 工具 uv</h3>
     <pre><code># Linux / macOS 系统一键安装：
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Windows 系统（PowerShell）：
 powershell -ExecutionUrl https://astral.sh/uv/install.ps1</code></pre>
 
-    <hr>
-
-    <h2>📦 第二步：克隆仓库并初始化环境</h2>
+    <h3>2. 克隆仓库并初始化环境</h3>
     <pre><code>git clone https://github.com/pch957/btsbots.git
 cd btsbots
-
-# 使用 uv 一键同步虚拟环境与依赖
 uv sync</code></pre>
 
-    <hr>
-
-    <h2>🔑 第三步：使用邀请码注册全新 BitShares 账号</h2>
-    <p>运行官方注册引导程序，输入邀请码与心仪的账号名：</p>
-
-    <pre><code># 标准注册命令格式：
-uv run registre_account.py --invite &lt;您的邀请码&gt;
-
-# 示例：
-uv run registre_account.py --invite BTS-9A4B8F21</code></pre>
-
-    <ol>
-      <li><strong>本地生成私钥</strong>：程序将在您的本地电脑内存中安全生成 <code>Owner</code>、<code>Active</code>、<code>Memo</code> 三对椭圆曲线密码学公私钥。</li>
-      <li><strong>链上委托注册</strong>：程序将公钥提交至您推荐人的 <code>sign_bots</code> 网关，由推荐人代为向比特股区块链广播开户操作并支付网络注册手续费。</li>
-      <li><strong>生成本地凭证文件</strong>：注册成功后，您的本地同级目录下将自动生成形如 <code>username_credentials.txt</code> 的安全私钥凭证文件。</li>
-    </ol>
-
-    <hr>
-
-    <h2>🛡️ 第四步：凭证管理与安全守护启动</h2>
-    <p>注册完成后，本地生成的凭证文件格式如下：</p>
-    <pre><code>myaccountname
-Owner WIF: 5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3
-Active WIF: 5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3
-Memo WIF: 5KQwrPbwdL6PhXujxW37FSSQZ1JiwsST4cqQzDeyXtP79zkvFD3</code></pre>
-
-    <h3>1. 获取 8 位 OTP 登录 Web / App</h3>
-    <pre><code>uv run get_otp.py --keyfile myaccountname_credentials.txt</code></pre>
-    <p>终端将输出一次性动态验证码，直接在网页端输入即可安全登入！</p>
-
-    <h3>2. 启动本地签名守护网关</h3>
-    <pre><code>uv run sign_bots.py --keyfile myaccountname_credentials.txt</code></pre>
-    <p>保持后台守护运行后，您即可在浏览器、手机 App 上随意发起安全转账、限价单交易与分红领取！</p>
-
-    <hr>
-
-    <h2>💡 附：比特股终生分红与推荐机制</h2>
-    <ul>
-      <li><strong>终生分成</strong>：新账户在比特股 DEX 交易所进行的所有交易（手续费返现与分红），其推荐人将终生共享手续费收益。</li>
-      <li><strong>无中心化托管</strong>：所有的分红收益均直接沉淀在比特股链上归属对象（<code>1.13.x</code>）中，您可以随时在 BTSBots 钱包的【🎁 分红】页面一键提取。</li>
-    </ul>
+    <h3>3. 执行注册命令</h3>
+    <pre><code>uv run registre_account.py --invite &lt;您的邀请码&gt;</code></pre>
+    <p>注册成功后本地将自动生成 <code>username_credentials.txt</code> 凭据文件，可运行 <code>uv run sign_bots.py --keyfile username_credentials.txt</code> 启动守护。</p>
   </div>
 
   <script>

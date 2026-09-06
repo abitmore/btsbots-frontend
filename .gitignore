@@ -29,3 +29,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+tmp/
+.gemini_limits_tracker.json
+.gemini_session*
+.ai.*
+.key
