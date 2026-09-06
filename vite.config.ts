@@ -33,15 +33,14 @@ export default defineConfig(() => {
     },
     build: {
       // 1. 核心大招：100KB 以下的图片、字体等静态资源全部内联成 Base64 字符串
-      // 这样可以消灭掉 assets 文件夹里成百上千个小图标文件
       assetsInlineLimit: 102400, 
       outDir: outDir,
       emptyOutDir: true,
+      chunkSizeWarningLimit: 1024, // 👈 调高包大小警告阈值到 1MB，消除不必要的提示
 
       rollupOptions: {
         output: {
           // 2. 强行把 node_modules 里的第三方依赖合并成一个叫 vendor 的大文件
-          // 阻止 Vite 将每个 npm 包都拆成独立的零碎 JS 块
           manualChunks(id) {
             if (id.includes('node_modules')) {
               return 'vendor';

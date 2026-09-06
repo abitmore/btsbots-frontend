@@ -41,7 +41,7 @@ export const PayView: React.FC<PayViewProps> = ({
   const [txResult, setTxResult] = useState('');
   const [error, setError] = useState('');
 
-  // 弹窗 PIN 验证状态机
+  // 弹窗 PIN 验证状态机 (针对网关设备风控付款码)
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
 

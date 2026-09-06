@@ -230,7 +230,7 @@ export const UserDetail: React.FC = () => {
             ) : processedBalances.map(b => (
               <div key={parseMongoId(b._id)} className="grid grid-cols-12 text-xs py-0.5 items-center border-b border-gray-100 dark:border-gray-800/40 font-mono">
                 <Link to={`/asset/${b.a}`} className="col-span-5 font-bold text-blue-500 hover:underline truncate">🪙 {b.a}</Link>
-                <span className="col-span-3 text-right">{b.f?.toLocaleString()}</span>
+                <span className="col-span-3 text-right">{b.b?.toLocaleString()}</span>
                 <span className="col-span-4 text-right text-emerald-500 font-bold">¥ {b.worthCNY?.toFixed(2)}</span>
               </div>
             ))}
@@ -329,7 +329,7 @@ export const UserDetail: React.FC = () => {
       {/* 损益汇总 (最近 30 天) */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm">
         <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-2 mb-2">
-          <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider">📈 {t.recentSummary} (近 30 天)</h3>
+          <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider">📈 {t.recentSummary} </h3>
           <span className="text-xs font-mono font-bold">
             {t.netProfit}: <b className={totalNetCnyProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}>¥ {totalNetCnyProfit.toFixed(2)} CNY</b>
           </span>

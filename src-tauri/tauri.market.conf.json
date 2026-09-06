@@ -36,11 +36,11 @@
       }
     },
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons-market/32x32.png",
+      "icons-market/128x128.png",
+      "icons-market/128x128@2x.png",
+      "icons-market/icon.icns",
+      "icons-market/icon.ico"
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
