@@ -3,8 +3,8 @@ name: BTSBots Multi-Platform CI/CD Build
 on:
   push:
     tags:
-      - 'v*.*.*'  
-  workflow_dispatch: 
+      - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -84,10 +84,10 @@ jobs:
 
           echo "=== 正在构建 Market Windows 安装包 ==="
           npm run build:market
-          Copy-Item -Path "src-tauri\tauri.market.conf.json" -Destination "src-tauri\tauri.conf.json" -Force
+          Copy-Item -Path "src-tauri\tauri.conf.json" -Destination "src-tauri\tauri.conf.json.bak" -Force
 
           npx tauri build
-          
+
           $marketMsi = Get-ChildItem -Path "src-tauri\target\release\bundle\msi\*.msi"
           if ($marketMsi) {
               $marketMsi | Copy-Item -Destination "release-artifacts\btsbots-market-setup.msi" -Force
@@ -115,7 +115,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22 
+          node-version: 22
           cache: 'npm'
 
       - name: Setup Java (JDK 21)
@@ -126,6 +126,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          build-tools-version: 34.0.0
+          android-version: platform-34
+
+      - name: Install Android Build Tools 29.0.3 for Signer
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
 
       - name: Install NPM Dependencies
         run: npm install
@@ -133,36 +140,85 @@ jobs:
       - name: Fix Android Java Version & Build APKs
         run: |
           echo "org.gradle.java.home=$JAVA_HOME" >> android/gradle.properties
-          
+
           mkdir -p release-artifacts
 
+          # ==================== 1. 构建 Wallet Android APK ====================
           echo "=== 正在构建 Wallet Android APK ==="
           npm run build:wallet
           ln -sf capacitor.wallet.config.ts capacitor.config.ts
           npx cap sync android
-          if [ -d "android/app/src/wallet/res" ]; then
-            cp -rf android/app/src/wallet/res/* android/app/src/main/res/
-          fi
+
+          # 彻底清空旧 mipmap 防止图标冲突
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable-v24/ic_launcher*
           
+          if [ -d "android/app/src/wallet/res" ]; then
+            echo "--- 正在复制 Wallet 自定义资源 ---"
+            cp -rf android/app/src/wallet/res/* android/app/src/main/res/
+          else
+            echo "--- [WARN] 找不到 android/app/src/wallet/res ---"
+          fi
+
           cd android
           chmod +x gradlew
           ./gradlew clean assembleWalletRelease
           cd ..
           find android/app/build/outputs/apk/wallet/release/ -name "*.apk" -exec cp {} release-artifacts/btsbots-wallet.apk \;
 
+
+          # ==================== 2. 构建 Market Android APK ====================
           echo "=== 正在构建 Market Android APK ==="
           npm run build:market
           ln -sf capacitor.market.config.ts capacitor.config.ts
           npx cap sync android
+
+          # 彻底清空旧 mipmap 防止图标冲突
+          rm -rf android/app/src/main/res/mipmap-*
+          rm -rf android/app/src/main/res/drawable-v24/ic_launcher*
+
           if [ -d "android/app/src/market/res" ]; then
+            echo "--- 正在复制 Market 自定义资源 ---"
             cp -rf android/app/src/market/res/* android/app/src/main/res/
+          else
+            echo "--- [WARN] 找不到 android/app/src/market/res ---"
           fi
-          
+
           cd android
           chmod +x gradlew
           ./gradlew clean assembleMarketRelease
           cd ..
           find android/app/build/outputs/apk/market/release/ -name "*.apk" -exec cp {} release-artifacts/btsbots-market.apk \;
+
+      - name: Sign Android APKs
+        uses: r0adkll/sign-android-release@v1
+        id: sign_apks
+        with:
+          releaseDirectory: release-artifacts
+          signingKeyBase64: ${{ secrets.SIGNING_KEY_BASE64 }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Clean up Unsigned and Intermediate APKs
+        run: |
+          echo "=== 清理中间过程 APK，只保留最终签名版 ==="
+          cd release-artifacts
+          
+          if [ -f "btsbots-wallet-signed.apk" ]; then
+            mv -f btsbots-wallet-signed.apk btsbots-wallet.apk
+          elif [ -f "btsbots-wallet-aligned.apk" ]; then
+            mv -f btsbots-wallet-aligned.apk btsbots-wallet.apk
+          fi
+
+          if [ -f "btsbots-market-signed.apk" ]; then
+            mv -f btsbots-market-signed.apk btsbots-market.apk
+          elif [ -f "btsbots-market-aligned.apk" ]; then
+            mv -f btsbots-market-aligned.apk btsbots-market.apk
+          fi
+
+          rm -f *-unsigned.apk *-aligned.apk *-unaligned.apk *-signed.apk || true
+          ls -la
 
       - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4
