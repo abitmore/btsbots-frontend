@@ -62,6 +62,7 @@ export const PayView: React.FC<PayViewProps> = ({
 
   const startPaymentFlow = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setTxResult('');
     setError('');
@@ -91,6 +92,7 @@ export const PayView: React.FC<PayViewProps> = ({
 
   const handlePinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setIsSubmitting(true);
     setError('');
 
@@ -187,7 +189,7 @@ export const PayView: React.FC<PayViewProps> = ({
                 key={name}
                 type="button"
                 onClick={() => setToAccount(name)}
-                className="text-xs bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-lg text-blue-500 font-mono font-bold"
+                className="text-xs bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1 rounded-lg text-blue-500 font-mono font-bold cursor-pointer"
               >
                 ＋ {name}
               </button>
@@ -236,9 +238,16 @@ export const PayView: React.FC<PayViewProps> = ({
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-bold py-3.5 rounded-2xl transition shadow-lg mt-2 text-base cursor-pointer"
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-bold py-3.5 rounded-2xl transition shadow-lg mt-2 text-base cursor-pointer flex items-center justify-center gap-2"
         >
-          {isSubmitting ? '正在处理...' : t.submit}
+          {isSubmitting ? (
+            <>
+              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>正在处理安全加签...</span>
+            </>
+          ) : (
+            <span>{t.submit}</span>
+          )}
         </button>
       </form>
 
@@ -255,24 +264,33 @@ export const PayView: React.FC<PayViewProps> = ({
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••••"
-                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 text-center text-2xl font-mono focus:outline-none focus:border-blue-500"
+                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 text-center text-2xl font-mono focus:outline-none focus:border-blue-500 text-gray-900 dark:text-white"
                 autoFocus
+                disabled={isSubmitting}
                 required
               />
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setShowPinModal(false)}
-                  className="flex-1 bg-gray-100 dark:bg-gray-700 py-3 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-gray-100 dark:bg-gray-700 py-3 rounded-xl text-xs font-bold text-gray-600 dark:text-gray-300 cursor-pointer"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl text-xs font-bold shadow-md"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white py-3 rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-1"
                 >
-                  确认授权
+                  {isSubmitting ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>验证中...</span>
+                    </>
+                  ) : (
+                    <span>确认授权</span>
+                  )}
                 </button>
               </div>
             </form>

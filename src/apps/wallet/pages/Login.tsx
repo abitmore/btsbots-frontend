@@ -15,6 +15,7 @@ export const Login: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError('');
     setIsSubmitting(true);
 
@@ -29,10 +30,10 @@ export const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-[100dvh] bg-gray-950 text-gray-100 flex items-center justify-center p-3.5 sm:p-6">
-      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-5 sm:p-8 max-w-sm w-full shadow-2xl">
+    <div className="fixed inset-0 w-screen h-[100vh] bg-gray-950 text-gray-100 flex items-center justify-center p-4 overflow-y-auto">
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl my-auto animate-fade-in">
         <div className="text-center mb-5 sm:mb-6">
-          <div className="h-11 w-11 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-white text-xl mx-auto mb-2.5 shadow-md">
+          <div className="h-12 w-12 bg-blue-600 rounded-2xl flex items-center justify-center font-black text-white text-xl mx-auto mb-2.5 shadow-md">
             B
           </div>
           <h2 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
@@ -56,7 +57,7 @@ export const Login: React.FC = () => {
               type="text"
               value={account}
               onChange={(e) => setAccount(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500 font-mono text-xs sm:text-sm"
+              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500 font-mono text-xs sm:text-sm text-white"
               placeholder="请输入账号名..."
               disabled={isSubmitting}
               required
@@ -70,7 +71,7 @@ export const Login: React.FC = () => {
               maxLength={8}
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500 text-center tracking-widest text-lg font-bold font-mono"
+              className="w-full bg-gray-800 border border-gray-700 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-blue-500 text-center tracking-widest text-lg font-bold font-mono text-white"
               placeholder="00000000"
               disabled={isSubmitting}
               required
@@ -80,9 +81,16 @@ export const Login: React.FC = () => {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 text-white font-bold py-3 rounded-2xl transition shadow-lg mt-1 text-xs sm:text-sm cursor-pointer"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 text-white font-bold py-3.5 rounded-2xl transition shadow-lg mt-1 text-xs sm:text-sm cursor-pointer flex items-center justify-center gap-2"
           >
-            {isSubmitting ? '正在验证安全凭据...' : t.login}
+            {isSubmitting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>正在验证安全凭据...</span>
+              </>
+            ) : (
+              <span>{t.login}</span>
+            )}
           </button>
         </form>
       </div>

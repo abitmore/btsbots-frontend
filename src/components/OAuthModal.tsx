@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useI18n } from '../lib/i18n';
 import type { OAuthChallengeData } from '../types/wallet';
 
 interface OAuthModalProps {
   isOpen: boolean;
   data: OAuthChallengeData | null;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void> | void;
   onCancel: () => void;
 }
 
@@ -16,8 +16,19 @@ export const OAuthModal: React.FC<OAuthModalProps> = ({
   onCancel
 }) => {
   const { t } = useI18n();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || !data) return null;
+
+  const handleAgreeClick = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onConfirm();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -41,16 +52,25 @@ export const OAuthModal: React.FC<OAuthModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-700 dark:text-gray-300 font-bold py-3 rounded-xl text-xs flex-1 transition cursor-pointer"
+            disabled={isSubmitting}
+            className="bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-700 dark:text-gray-300 font-bold py-3 rounded-xl text-xs flex-1 transition cursor-pointer disabled:opacity-50"
           >
             {t.oauthReject}
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl text-xs flex-1 transition shadow-md cursor-pointer"
+            onClick={handleAgreeClick}
+            disabled={isSubmitting}
+            className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white font-bold py-3 rounded-xl text-xs flex-1 transition shadow-md cursor-pointer flex items-center justify-center gap-1.5"
           >
-            {t.oauthAgree}
+            {isSubmitting ? (
+              <>
+                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>授权加签中...</span>
+              </>
+            ) : (
+              <span>{t.oauthAgree}</span>
+            )}
           </button>
         </div>
       </div>

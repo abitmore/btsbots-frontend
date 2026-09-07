@@ -140,6 +140,9 @@ jobs:
           npm run build:wallet
           ln -sf capacitor.wallet.config.ts capacitor.config.ts
           npx cap sync android
+          if [ -d "android/app/src/wallet/res" ]; then
+            cp -rf android/app/src/wallet/res/* android/app/src/main/res/
+          fi
           
           cd android
           chmod +x gradlew
@@ -151,6 +154,9 @@ jobs:
           npm run build:market
           ln -sf capacitor.market.config.ts capacitor.config.ts
           npx cap sync android
+          if [ -d "android/app/src/market/res" ]; then
+            cp -rf android/app/src/market/res/* android/app/src/main/res/
+          fi
           
           cd android
           chmod +x gradlew
