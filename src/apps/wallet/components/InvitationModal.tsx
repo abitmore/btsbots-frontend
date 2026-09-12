@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ddpPool } from '../../../lib/ddp/ddpSubPool';
 import { DDP_CONFIG } from '../../../config/ddpConfig';
-import { formatFullDateTime, type InvitationDoc } from '../../../types/models';
+import { parseMongoTime, formatSmartDateTime, type InvitationDoc } from '../../../types/models';
 
 interface InvitationModalProps {
   isOpen: boolean;
@@ -85,8 +85,18 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
 
   if (!isOpen) return null;
 
-  const unusedList = invitations.filter(i => i.status === 'unused');
-  const usedList = invitations.filter(i => i.status === 'used');
+  const unusedList = invitations
+    .filter(i => i.status === 'unused')
+    .sort((a, b) => parseMongoTime(b.createdAt) - parseMongoTime(a.createdAt));
+
+  // 🌟 核心改进：已使用历史邀请码按使用时间 (usedAt) 由近及远倒序排列
+  const usedList = invitations
+    .filter(i => i.status === 'used')
+    .sort((a, b) => {
+      const timeA = parseMongoTime(a.usedAt || a.createdAt);
+      const timeB = parseMongoTime(b.usedAt || b.createdAt);
+      return timeB - timeA;
+    });
 
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in text-sm">
@@ -153,7 +163,7 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
           </div>
         )}
 
-        {/* 🌟 4. 未使用与已使用 Tab 分开显示 */}
+        {/* Tab 导航 */}
         <div className="flex border-b border-gray-100 dark:border-gray-800 mb-3 gap-4 text-xs font-bold">
           <button
             type="button"
@@ -187,73 +197,78 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
                 暂无未使用的邀请码
               </div>
             ) : (
-              unusedList.map((item) => (
-                <div
-                  key={item.code}
-                  className="bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs"
-                >
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-gray-900 dark:text-white tracking-wide">
-                        {item.code}
-                      </span>
-                      <span className="bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[10px] font-bold">
-                        可使用
-                      </span>
+              unusedList.map((item) => {
+                const dt = formatSmartDateTime(item.createdAt);
+                return (
+                  <div
+                    key={item.code}
+                    className="bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-sm text-gray-900 dark:text-white tracking-wide">
+                          {item.code}
+                        </span>
+                        <span className="bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[10px] font-bold">
+                          可使用
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 font-mono">
+                        创建时间: {dt.dateStr} {dt.timeStr}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-gray-400 font-mono">
-                      创建时间: {formatFullDateTime(item.createdAt)}
-                    </p>
-                  </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(item.code)}
-                      className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 px-2.5 py-1 rounded-xl text-xs font-bold cursor-pointer transition"
-                    >
-                      复制
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item.code)}
-                      disabled={loading}
-                      className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-2.5 py-1 rounded-xl text-xs font-bold cursor-pointer transition"
-                    >
-                      删除
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(item.code)}
+                        className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 px-2.5 py-1 rounded-xl text-xs font-bold cursor-pointer transition"
+                      >
+                        复制
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.code)}
+                        disabled={loading}
+                        className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-2.5 py-1 rounded-xl text-xs font-bold cursor-pointer transition"
+                      >
+                        删除
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )
           ) : (
-            // 🌟 5. 已使用的邀请码：展示使用人、使用时间，无复制按钮与删除按钮
             usedList.length === 0 ? (
               <div className="text-center py-10 text-xs text-gray-400">
                 暂无已被使用的邀请码
               </div>
             ) : (
-              usedList.map((item) => (
-                <div
-                  key={item.code}
-                  className="bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs opacity-80"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-gray-500 dark:text-gray-300 tracking-wide line-through">
-                        {item.code}
-                      </span>
-                      <span className="bg-gray-500/10 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold">
-                        已注册
-                      </span>
-                    </div>
-                    <div className="text-[11px] text-gray-400 space-y-0.5">
-                      <p>使用者账号: <b className="text-blue-500 font-mono">{item.usedBy || '未知'}</b></p>
-                      <p className="font-mono">使用时间: {item.usedAt ? formatFullDateTime(item.usedAt) : '--'}</p>
+              usedList.map((item) => {
+                const dt = formatSmartDateTime(item.usedAt || item.createdAt);
+                return (
+                  <div
+                    key={item.code}
+                    className="bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3 flex items-center justify-between gap-3 text-xs opacity-80"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-black text-sm text-gray-500 dark:text-gray-300 tracking-wide line-through">
+                          {item.code}
+                        </span>
+                        <span className="bg-gray-500/10 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold">
+                          已注册
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-gray-400 space-y-0.5">
+                        <p>使用者账号: <b className="text-blue-500 font-mono">{item.usedBy || '未知'}</b></p>
+                        <p className="font-mono">使用时间: {item.usedAt ? `${dt.dateStr} ${dt.timeStr}` : '--'}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )
           )}
         </div>

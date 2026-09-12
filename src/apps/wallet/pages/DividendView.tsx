@@ -43,7 +43,7 @@ export const DividendView: React.FC = () => {
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.VESTING, { u: currentAccount });
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.VESTING_WITHDRAW, { u: currentAccount });
 
-  // 🌟 核心改进：待领金额为 0 的项自动隐藏，不显示在列表中
+  // 待领金额为 0 的项自动隐藏
   const rawVestings = useCollection<VestingDoc>(
     DDP_CONFIG.COLLECTIONS.VESTING,
     v => v.u === currentAccount
@@ -165,8 +165,19 @@ export const DividendView: React.FC = () => {
     }
   };
 
-  const unusedInviteList = invitations.filter(i => i.status === 'unused');
-  const usedInviteList = invitations.filter(i => i.status === 'used');
+  // 未使用：按创建时间倒序排
+  const unusedInviteList = invitations
+    .filter(i => i.status === 'unused')
+    .sort((a, b) => parseMongoTime(b.createdAt) - parseMongoTime(a.createdAt));
+
+  // 🌟 核心改进：已使用历史邀请码，严格按使用时间 (usedAt) 由近及远排序
+  const usedInviteList = invitations
+    .filter(i => i.status === 'used')
+    .sort((a, b) => {
+      const timeA = parseMongoTime(a.usedAt || a.createdAt);
+      const timeB = parseMongoTime(b.usedAt || b.createdAt);
+      return timeB - timeA;
+    });
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto animate-fade-in pb-16 md:pb-0 text-sm">
@@ -321,7 +332,8 @@ export const DividendView: React.FC = () => {
                             #{tx.B}
                           </td>
                           <td className="py-2.5 text-right text-gray-400 text-[11px]" title={dt.fullStr}>
-                            {dt.dateStr} {dt.timeStr}
+                            <span className="font-mono text-gray-700 dark:text-gray-300 mr-1.5">{dt.dateStr}</span>
+                            <span>{dt.timeStr}</span>
                           </td>
                         </tr>
                       );
@@ -471,7 +483,7 @@ export const DividendView: React.FC = () => {
                 </div>
               ) : (
                 usedInviteList.map((item) => {
-                  const dt = formatSmartDateTime(item.usedAt);
+                  const dt = formatSmartDateTime(item.usedAt || item.createdAt);
                   return (
                     <div
                       key={item.code}
