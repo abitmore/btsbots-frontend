@@ -3,7 +3,7 @@ name: BTSBots Multi-Platform CI/CD Build
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*'
   workflow_dispatch:
 
 permissions:
