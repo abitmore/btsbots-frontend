@@ -6,7 +6,19 @@ import { useFavorites } from '../../../hooks/useFavorites';
 import { useDdpSubscription } from '../../../hooks/useDdpSubscription';
 import { useCollection } from '../../../hooks/useCollection';
 import { DDP_CONFIG } from '../../../config/ddpConfig';
-import { parseMongoId, parseMongoTime, formatFullDateTime, extractBitsharesOrderId, type BalanceDoc, type TransferDoc, type FillOrderDoc, type OrderDoc, type OrderHistoryDoc, type PriceDoc } from '../../../types/models';
+import { 
+  parseMongoId, 
+  parseMongoTime, 
+  formatSmartDateTime,
+  formatSignificantPrice, 
+  extractBitsharesOrderId, 
+  type BalanceDoc, 
+  type TransferDoc, 
+  type FillOrderDoc, 
+  type OrderDoc, 
+  type OrderHistoryDoc, 
+  type PriceDoc 
+} from '../../../types/models';
 import { signerInstance } from '../../../lib/crypto/signer';
 import { ddpPool } from '../../../lib/ddp/ddpSubPool';
 
@@ -95,7 +107,6 @@ export const UserDetail: React.FC = () => {
 
   const totalWorth = processedBalances.reduce((sum, b) => sum + (b.worthCNY || 0), 0);
 
-  // 🌟 核心改进：过滤掉 30 天（1 个月）前的成交记录，使近期交易汇总更具参考价值
   const oneMonthAgoMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
   const assetFlowMap: Record<string, { volume: number; balance: number; value: number }> = {};
   let totalNetCnyProfit = 0;
@@ -103,7 +114,7 @@ export const UserDetail: React.FC = () => {
   trades.forEach(tx => {
     if (!tx.a || !tx.b) return;
     const txTimeMs = parseMongoTime(tx.T);
-    if (txTimeMs < oneMonthAgoMs) return; // 跳过 1 个月前的久远记录
+    if (txTimeMs < oneMonthAgoMs) return;
 
     const isTaker = tx.u[0] === cleanedUser;
     const factor = isTaker ? [-1, 1] : [1, -1];
@@ -246,8 +257,8 @@ export const UserDetail: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-12 text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
-            <span className="col-span-5">{t.pair}</span>
-            <span className="col-span-3 text-right">{t.price}</span>
+            <span className="col-span-4">{t.pair}</span>
+            <span className="col-span-4 text-right">{t.price}</span>
             <span className="col-span-4 text-right">{t.amount}</span>
           </div>
 
@@ -256,14 +267,14 @@ export const UserDetail: React.FC = () => {
               <p className="text-xs text-gray-400 py-6 text-center">{t.noData}</p>
             ) : openOrders.map(o => (
               <div key={parseMongoId(o._id)} className="grid grid-cols-12 text-xs py-0.5 items-center border-b border-gray-100 dark:border-gray-800/40 font-mono">
-                <Link to="/market" state={{ jumpPair: `${o.a?.s}_${o.a?.b}` }} className="col-span-5 text-blue-500 hover:underline truncate">
-                  {o.a?.s}/{o.a?.b}
+                <Link to="/market" state={{ jumpPair: `${o.a?.s}_${o.a?.b}` }} className="col-span-4 text-blue-500 hover:underline truncate font-bold">
+                  {o.a?.s} / {o.a?.b}
                 </Link>
-                <span className="col-span-3 text-right text-red-500 font-bold">{o.p?.toFixed(4)}</span>
+                <span className="col-span-4 text-right text-red-500 font-bold">{formatSignificantPrice(o.p)}</span>
                 <div className="col-span-4 flex items-center justify-end gap-1.5">
                   <span>{o.b?.toFixed(2)}</span>
                   {cleanedUser === currentAccount && (
-                    <button onClick={() => handleCancelOrder(o)} className="text-red-500 font-bold hover:bg-red-500/10 px-1 rounded cursor-pointer">✕</button>
+                    <button onClick={() => handleCancelOrder(o)} className="text-red-500 font-bold hover:bg-red-500/10 px-1 rounded cursor-pointer" title="撤单">✕</button>
                   )}
                 </div>
               </div>
@@ -280,20 +291,22 @@ export const UserDetail: React.FC = () => {
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm flex flex-col h-full">
           <h3 className="text-xs font-bold text-amber-500 mb-2 uppercase tracking-wider">💸 {t.userTransfers} ({transfers.length})</h3>
           <div className="grid grid-cols-12 text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
-            <span className="col-span-3">{t.time}</span>
-            <span className="col-span-5">{t.trader}</span>
+            <span className="col-span-4">{t.time}</span>
+            <span className="col-span-4">{t.trader}</span>
             <span className="col-span-4 text-right">{t.amount}</span>
           </div>
           <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 flex-1">
             {transfers.map(tx => {
+              const dt = formatSmartDateTime(tx.T);
               const isSender = tx.u?.[0] === cleanedUser;
               const counterparty = isSender ? tx.u?.[1] : tx.u?.[0];
               return (
-                <div key={parseMongoId(tx._id)} className="grid grid-cols-12 text-xs py-0.5 items-center border-b border-gray-100 dark:border-gray-800/40 font-mono">
-                  <span className="col-span-3 text-gray-400 text-[11px]" title={formatFullDateTime(tx.T)}>
-                    {new Date(parseMongoTime(tx.T)).toLocaleTimeString()}
-                  </span>
-                  <Link to={`/user/${counterparty}`} className="col-span-5 text-blue-500 hover:underline truncate">{counterparty}</Link>
+                <div key={parseMongoId(tx._id)} className="grid grid-cols-12 text-xs py-1 items-center border-b border-gray-100 dark:border-gray-800/40 font-mono">
+                  <div className="col-span-4 flex flex-col" title={dt.fullStr}>
+                    <span className="text-gray-700 dark:text-gray-300 text-[11px] leading-tight font-medium">{dt.dateStr}</span>
+                    <span className="text-gray-400 text-[10px] leading-tight mt-0.5">{dt.timeStr}</span>
+                  </div>
+                  <Link to={`/user/${counterparty}`} className="col-span-4 text-blue-500 hover:underline truncate font-bold">{counterparty}</Link>
                   <span className={`col-span-4 text-right font-bold ${isSender ? 'text-red-500' : 'text-emerald-500'}`}>
                     {isSender ? '← ' : '➔ '}{tx.b} <Link to={`/asset/${tx.a}`} className="hover:underline">{tx.a}</Link>
                   </span>
@@ -307,29 +320,37 @@ export const UserDetail: React.FC = () => {
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm flex flex-col h-full">
           <h3 className="text-xs font-bold text-red-500 mb-2 uppercase tracking-wider">📜 {t.userTrades} ({trades.length})</h3>
           <div className="grid grid-cols-12 text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
-            <span className="col-span-3">{t.time}</span>
-            <span className="col-span-5">{t.pair}</span>
+            <span className="col-span-4">{t.time}</span>
+            <span className="col-span-4">{t.pair}</span>
             <span className="col-span-4 text-right">{t.price}</span>
           </div>
           <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 flex-1">
-            {trades.map(tr => (
-              <div key={parseMongoId(tr._id)} className="grid grid-cols-12 text-xs py-0.5 items-center border-b border-gray-100 dark:border-gray-800/40 font-mono">
-                <span className="col-span-3 text-gray-400 text-[11px]" title={formatFullDateTime(tr.T)}>
-                  {new Date(parseMongoTime(tr.T)).toLocaleTimeString()}
-                </span>
-                <Link to="/market" state={{ jumpPair: tr.m }} className="col-span-5 text-blue-500 hover:underline truncate">{tr.a?.join('/')}</Link>
-                <b className="col-span-4 text-right text-red-500">{tr.p?.toFixed(4)}</b>
-              </div>
-            ))}
+            {trades.map(tr => {
+              const dt = formatSmartDateTime(tr.T);
+              return (
+                <div key={parseMongoId(tr._id)} className="grid grid-cols-12 text-xs py-1 items-center border-b border-gray-100 dark:border-gray-800/40 font-mono">
+                  <div className="col-span-4 flex flex-col" title={dt.fullStr}>
+                    <span className="text-gray-700 dark:text-gray-300 text-[11px] leading-tight font-medium">{dt.dateStr}</span>
+                    <span className="text-gray-400 text-[10px] leading-tight mt-0.5">{dt.timeStr}</span>
+                  </div>
+                  <Link to="/market" state={{ jumpPair: tr.m }} className="col-span-4 text-blue-500 hover:underline truncate font-bold">
+                    {tr.a ? `${tr.a[0]} / ${tr.a[1]}` : tr.m?.replace('_', ' / ')}
+                  </Link>
+                  <b className="col-span-4 text-right text-red-500">
+                    {formatSignificantPrice(tr.p)}
+                  </b>
+                </div>
+              );
+            })}
           </div>
         </div>
 
       </div>
 
-      {/* 损益汇总 (最近 30 天) */}
+      {/* 损益汇总 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm">
         <div className="flex justify-between items-center border-b border-gray-100 dark:border-gray-800 pb-2 mb-2">
-          <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider">📈 {t.recentSummary} </h3>
+          <h3 className="text-xs font-bold text-blue-500 uppercase tracking-wider">📈 {t.recentSummary}</h3>
           <span className="text-xs font-mono font-bold">
             {t.netProfit}: <b className={totalNetCnyProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}>¥ {totalNetCnyProfit.toFixed(2)} CNY</b>
           </span>
@@ -358,22 +379,65 @@ export const UserDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* 委托日志 */}
+      {/* 🌟 核心改进：下单记录中的市场严格按成交记录中的 sell / buy (即 oh.a[0] / oh.a[1]) 方式显示，价格与市场单位准确对应 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm">
         <h3 className="text-xs font-bold text-amber-500 mb-2 uppercase tracking-wider">📋 {t.orderHistoryLogs} ({orderHistory.length})</h3>
+        
+        <div className="grid grid-cols-12 text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
+          <span className="col-span-4 sm:col-span-3">{t.time}</span>
+          <span className="col-span-2 sm:col-span-2">{t.action}</span>
+          <span className="col-span-3 sm:col-span-3">{t.price}</span>
+          <span className="col-span-3 sm:col-span-4 text-right">市场 (Sell / Buy)</span>
+        </div>
+
         <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 font-mono text-xs">
-          {orderHistory.map(oh => (
-            <div key={parseMongoId(oh._id)} className="flex justify-between items-center py-0.5 border-b border-gray-100 dark:border-gray-800/40">
-              <span className="text-gray-400 text-[11px]" title={formatFullDateTime(oh.T)}>
-                {new Date(parseMongoTime(oh.T)).toLocaleTimeString()}
-              </span>
-              <span className={`font-bold ${oh.t === 1 ? 'text-emerald-500' : 'text-red-500'}`}>
-                {oh.t === 1 ? t.placeOrder : t.cancelOrder}
-              </span>
-              <span className="text-blue-500 font-bold">{oh.p?.toFixed(4)}</span>
-              <Link to="/market" state={{ jumpPair: oh.m }} className="text-gray-400 hover:text-blue-500 hover:underline">{oh.m}</Link>
-            </div>
-          ))}
+          {orderHistory.map(oh => {
+            const dt = formatSmartDateTime(oh.T);
+            
+            // 🌟 解决价格与市场混乱的核心：优先读取 oh.a（[sell_asset, buy_asset]），与价格 oh.p 的计算方向完全一致
+            const displayMarket = (Array.isArray(oh.a) && oh.a.length >= 2)
+              ? `${oh.a[0]} / ${oh.a[1]}`
+              : (oh.m ? oh.m.replace('_', ' / ') : '--');
+
+            const routePair = (Array.isArray(oh.a) && oh.a.length >= 2)
+              ? `${oh.a[0]}_${oh.a[1]}`
+              : (oh.m || '');
+
+            return (
+              <div key={parseMongoId(oh._id)} className="grid grid-cols-12 py-1 items-center border-b border-gray-100 dark:border-gray-800/40">
+                {/* 🌟 时间与日期之间加入标准清晰的间距 */}
+                <div className="col-span-4 sm:col-span-3 flex flex-col" title={dt.fullStr}>
+                  <span className="text-gray-700 dark:text-gray-300 text-[11px] leading-tight font-medium">{dt.dateStr}</span>
+                  <span className="text-gray-400 text-[10px] leading-tight mt-0.5">{dt.timeStr}</span>
+                </div>
+
+                <div className="col-span-2 sm:col-span-2">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${
+                    oh.t === 1 
+                      ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30' 
+                      : (oh.t === 2 
+                          ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' 
+                          : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30')
+                  }`}>
+                    {oh.t === 1 ? t.placeOrder : (oh.t === 77 ? t.updateOrder : t.cancelOrder)}
+                  </span>
+                </div>
+
+                <span className="col-span-3 sm:col-span-3 text-blue-500 font-bold">
+                  {formatSignificantPrice(oh.p)}
+                </span>
+
+                <Link 
+                  to="/market" 
+                  state={{ jumpPair: routePair }} 
+                  className="col-span-3 sm:col-span-4 text-right text-gray-500 dark:text-gray-400 hover:text-blue-500 hover:underline font-bold truncate"
+                  title={`前往交易市场 ${displayMarket}`}
+                >
+                  {displayMarket}
+                </Link>
+              </div>
+            );
+          })}
         </div>
       </div>
 

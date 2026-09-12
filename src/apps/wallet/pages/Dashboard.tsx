@@ -5,7 +5,14 @@ import { useDdpSubscription } from '../../../hooks/useDdpSubscription';
 import { useCollection } from '../../../hooks/useCollection';
 import { useBlacklist } from '../../../hooks/useBlacklist';
 import { DDP_CONFIG } from '../../../config/ddpConfig';
-import { parseMongoId, parseMongoTime, formatFullDateTime, type BalanceDoc, type TransferDoc, type WalletPaymentMetadataDoc } from '../../../types/models';
+import { 
+  parseMongoId, 
+  parseMongoTime, 
+  formatSmartDateTime,
+  type BalanceDoc, 
+  type TransferDoc, 
+  type WalletPaymentMetadataDoc 
+} from '../../../types/models';
 import { ddpPool } from '../../../lib/ddp/ddpSubPool';
 
 interface DashboardProps {
@@ -21,7 +28,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const { currentAccount } = useAuth();
   const { isBlacklisted } = useBlacklist();
 
-  // 挂载数据订阅
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.BALANCE, { u: currentAccount });
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.TRANSFER, { u: currentAccount });
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.MY_PAYMENT_METADATA);
@@ -34,7 +40,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
     (a, b) => parseMongoTime(b.T) - parseMongoTime(a.T)
   );
 
-  // 改用 RPC 拉取评级与用户资产设定
   const [ratingMap, setRatingMap] = useState<Record<string, number>>({});
   const [allowedAssets, setAllowedAssets] = useState<string[]>([]);
   const [hiddenAssets, setHiddenAssets] = useState<string[]>([]);
@@ -107,6 +112,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     .filter(Boolean);
 
   const handleHideAsset = async (symbol: string) => {
+    if (!confirm(`确定在资产列表中隐藏代币 ${symbol} 吗？您可以在“设置”中随时恢复。`)) return;
     await ddpPool.call(DDP_CONFIG.METHODS.SET_ASSET_VISIBILITY, symbol, -1);
     setHiddenAssets(prev => [...prev, symbol.toUpperCase()]);
   };
@@ -130,15 +136,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
           {processedBalances.length === 0 ? (
             <p className="text-xs text-gray-400 py-6 text-center">{t.noAsset}</p>
           ) : processedBalances.map(b => (
-            <div key={parseMongoId(b._id)} className="py-2.5 flex justify-between items-center">
+            <div key={parseMongoId(b._id)} className="py-2.5 flex justify-between items-center group">
               <span className="font-extrabold text-sm text-gray-900 dark:text-white font-mono">★ {b.a}</span>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="font-mono font-bold text-sm text-gray-800 dark:text-gray-100">{b.f.toLocaleString()}</span>
+                {/* 🌟 核心改进：将占用大面积空间的隐藏按钮重构成精简轻量的灰度小图标 */}
                 <button
                   onClick={() => handleHideAsset(b.a)}
-                  className="text-[11px] text-red-500 bg-red-500/10 px-2 py-1 rounded cursor-pointer font-bold"
+                  className="opacity-40 hover:opacity-100 text-gray-400 hover:text-red-500 p-1 rounded-md transition cursor-pointer"
+                  title={`隐藏资产 ${b.a}`}
                 >
-                  {t.hide}
+                  ✕
                 </button>
               </div>
             </div>
@@ -146,59 +154,113 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 历史流水面板 */}
+      {/* 历史流水面板 (🌟 核心改进：移动端转为自适应卡片流，显示完整年月日；PC端保持宽表格) */}
       <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 md:p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
         <h3 className="text-base font-bold mb-3 text-gray-800 dark:text-gray-200">📜 {t.history}</h3>
         
         {pairedTransfers.length === 0 ? (
           <p className="text-xs text-gray-400 py-6 text-center">{t.noHistory}</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs text-gray-700 dark:text-gray-300">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-400 font-bold">
-                  <th className="py-2.5">Type</th>
-                  <th className="py-2.5">Counterparty</th>
-                  <th className="py-2.5">Amount</th>
-                  <th className="py-2.5 text-right">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-mono">
-                {pairedTransfers.map(tx => (
-                  <tr key={parseMongoId(tx!._id)} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition">
-                    <td className={`py-2.5 font-extrabold ${tx!.isOut ? 'text-red-500' : 'text-emerald-500'}`}>
-                      {tx!.isOut ? 'OUT ➔' : 'IN 🠔'}
-                    </td>
-                    <td className="py-2.5">
-                      <button
-                        type="button"
-                        onClick={() => onSelectCounterparty(tx!.counterparty)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-left cursor-pointer"
-                      >
-                        {tx!.counterparty}
-                      </button>
-                      <div className="flex flex-wrap gap-1 mt-0.5">
+          <>
+            {/* 手机端紧凑卡片流：无需向左滑动，垂直排版两行展示，清晰看到交易对方、金额、年月日与时间 */}
+            <div className="md:hidden space-y-2.5 divide-y divide-gray-100 dark:divide-gray-700/50">
+              {pairedTransfers.map(tx => {
+                const dt = formatSmartDateTime(tx!.T);
+                return (
+                  <div key={parseMongoId(tx!._id)} className="pt-2.5 first:pt-0 font-mono">
+                    <div className="flex justify-between items-center text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`font-black text-[11px] px-1.5 py-0.5 rounded ${tx!.isOut ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                          {tx!.isOut ? 'OUT ➔' : 'IN 🠔'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onSelectCounterparty(tx!.counterparty)}
+                          className="text-blue-600 dark:text-blue-400 font-bold truncate hover:underline text-left"
+                        >
+                          {tx!.counterparty}
+                        </button>
+                      </div>
+                      <span className="font-bold text-gray-900 dark:text-white text-xs">
+                        {tx!.b} {tx!.a}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-[11px] text-gray-400 mt-1">
+                      <span>{dt.dateStr} {dt.timeStr}</span>
+                      <span className="text-[10px] text-gray-500">#{tx!.B}</span>
+                    </div>
+
+                    {(tx!.plainMemo || tx!.plainGoods) && (
+                      <div className="flex flex-wrap gap-1 mt-1 font-sans text-[10px]">
                         {tx!.plainMemo && (
-                          <span className="text-[10px] font-sans bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                          <span className="bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded">
                             🗒️ {tx!.plainMemo}
                           </span>
                         )}
                         {tx!.plainGoods && (
-                          <span className="text-[10px] font-sans bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded border border-blue-500/20">
+                          <span className="bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">
                             🛒 {tx!.plainGoods}
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td className="py-2.5 font-bold">{tx!.b} {tx!.a}</td>
-                    <td className="py-2.5 text-right text-gray-400 text-[11px]" title={formatFullDateTime(tx!.T)}>
-                      {new Date(parseMongoTime(tx!.T)).toLocaleTimeString()}
-                    </td>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* PC端桌面大表格 */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs text-gray-700 dark:text-gray-300">
+                <thead>
+                  <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-400 font-bold">
+                    <th className="py-2.5">Type</th>
+                    <th className="py-2.5">Counterparty</th>
+                    <th className="py-2.5">Amount</th>
+                    <th className="py-2.5 text-right">Time</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-mono">
+                  {pairedTransfers.map(tx => {
+                    const dt = formatSmartDateTime(tx!.T);
+                    return (
+                      <tr key={parseMongoId(tx!._id)} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition">
+                        <td className={`py-2.5 font-extrabold ${tx!.isOut ? 'text-red-500' : 'text-emerald-500'}`}>
+                          {tx!.isOut ? 'OUT ➔' : 'IN 🠔'}
+                        </td>
+                        <td className="py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => onSelectCounterparty(tx!.counterparty)}
+                            className="text-blue-600 dark:text-blue-400 hover:underline font-bold text-left cursor-pointer"
+                          >
+                            {tx!.counterparty}
+                          </button>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {tx!.plainMemo && (
+                              <span className="text-[10px] font-sans bg-gray-100 dark:bg-gray-900 text-gray-600 dark:text-gray-400 px-1.5 py-0.5 rounded border border-gray-200 dark:border-gray-700">
+                                🗒️ {tx!.plainMemo}
+                              </span>
+                            )}
+                            {tx!.plainGoods && (
+                              <span className="text-[10px] font-sans bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded border border-blue-500/20">
+                                🛒 {tx!.plainGoods}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-2.5 font-bold">{tx!.b} {tx!.a}</td>
+                        <td className="py-2.5 text-right text-gray-400 text-[11px]" title={dt.fullStr}>
+                          {dt.dateStr} {dt.timeStr}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

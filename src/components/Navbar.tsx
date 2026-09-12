@@ -23,6 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     return localStorage.getItem('btsbots_theme') !== 'light';
   });
 
+  const hasPin = PinLockManager.hasPinSet();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +64,14 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
+  const handleLockClick = () => {
+    if (hasPin) {
+      onLockTrigger();
+    } else {
+      navigate('/settings');
+    }
+  };
+
   const handleLogout = async () => {
     await logout();
     setMenuOpen(false);
@@ -89,12 +98,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* PC 端导航 (Market App) */}
             {appType === 'market' && (
               <div className="hidden md:flex items-center gap-5 text-xs font-bold text-gray-700 dark:text-gray-200">
-                <NavLink to="/" end className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>{t.home}</NavLink>
-                <NavLink to="/market" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>{t.trade}</NavLink>
-                <NavLink to="/asset" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>{t.asset}</NavLink>
-                <NavLink to={currentAccount ? `/user/${currentAccount}` : '/user/demo.btsbots'} className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>{t.account}</NavLink>
+                <NavLink to="/" end className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>{t.home}</NavLink>
+                <NavLink to="/market" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>{t.trade}</NavLink>
+                <NavLink to="/asset" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>{t.asset}</NavLink>
+                <NavLink to={currentAccount ? `/user/${currentAccount}` : '/user/demo.btsbots'} className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>{t.account}</NavLink>
                 {isLoggedIn && (
-                  <NavLink to="/pay" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>{t.payView}</NavLink>
+                  <NavLink to="/pay" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>{t.payView}</NavLink>
                 )}
                 <button onClick={handleOpenDocs} className="hover:text-blue-500 transition flex items-center gap-1 text-blue-500 font-bold cursor-pointer">
                   <span>📚</span>
@@ -106,9 +115,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* PC 端导航 (Wallet App) */}
             {appType === 'wallet' && isLoggedIn && (
               <div className="hidden md:flex items-center gap-5 text-xs font-bold text-gray-700 dark:text-gray-200">
-                <NavLink to="/" end className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>💰 {t.wallet}</NavLink>
-                <NavLink to="/pay" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>💸 {t.payView}</NavLink>
-                <NavLink to="/dividend" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400' : ''}`}>🎁 {t.dividend}</NavLink>
+                <NavLink to="/" end className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>💰 {t.wallet}</NavLink>
+                <NavLink to="/pay" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>💸 {t.payView}</NavLink>
+                <NavLink to="/dividend" className={({ isActive }) => `hover:text-blue-500 transition ${isActive ? 'text-blue-600 dark:text-blue-400 font-extrabold' : ''}`}>🎁 {t.dividend}</NavLink>
                 <button onClick={handleOpenDocs} className="hover:text-blue-500 transition flex items-center gap-1 text-blue-500 font-bold cursor-pointer">
                   <span>📚</span>
                   <span>{t.docs}</span>
@@ -125,14 +134,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               title={isConnected ? t.nodeConnected : t.nodeDisconnected}
             />
 
-            {/* 锁屏按钮 (仅登录且设定过 PIN 时显示) */}
-            {isLoggedIn && PinLockManager.hasPinSet() && (
+            {/* 锁屏按钮：无论是否设置 PIN，只要登录均展示；未设置时提示点击设置 */}
+            {isLoggedIn && (
               <button
-                onClick={onLockTrigger}
-                title={t.lockWallet}
-                className="bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border border-gray-200 dark:border-gray-700"
+                onClick={handleLockClick}
+                title={hasPin ? t.lockWallet : t.setPin}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer border flex items-center gap-1 ${
+                  hasPin 
+                    ? 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700' 
+                    : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30 animate-pulse'
+                }`}
               >
-                🔒 <span className="hidden sm:inline">{t.lockWallet}</span>
+                <span>{hasPin ? '🔒' : '🔓'}</span>
+                <span className="hidden sm:inline">{hasPin ? t.lockWallet : t.setPin}</span>
               </button>
             )}
 
@@ -148,8 +162,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {menuOpen && (
                 <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl py-1.5 z-50 text-xs animate-fade-in divide-y divide-gray-100 dark:divide-gray-700/50">
-                  
-                  {/* 仅登录时显示扫码 & 设置 */}
                   {isLoggedIn && onOpenScan && (
                     <button
                       onClick={() => { setMenuOpen(false); onOpenScan(); }}
@@ -176,7 +188,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     📚 {t.docs}
                   </button>
 
-                  {/* 语言选择 */}
                   <div className="flex justify-between items-center px-3.5 py-2 text-gray-800 dark:text-gray-200">
                     <span>🌐 语言</span>
                     <select
@@ -190,7 +201,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </select>
                   </div>
 
-                  {/* 主题切换 */}
                   <div className="flex justify-between items-center px-3.5 py-2 text-gray-800 dark:text-gray-200">
                     <span>{isDark ? '🌙 暗黑' : '☀️ 明亮'}</span>
                     <button
@@ -201,7 +211,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </button>
                   </div>
 
-                  {/* 登录/登出 */}
                   <div className="pt-1">
                     {isLoggedIn ? (
                       <button
@@ -220,7 +229,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </Link>
                     )}
                   </div>
-
                 </div>
               )}
             </div>
@@ -229,29 +237,79 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </nav>
 
-      {/* 移动端底部 Tab (Market App) */}
+      {/* 优化后的移动端底部 Tab (Market App)，激活时呈现精致的药丸胶囊底色与微浮雕投影 */}
       {appType === 'market' && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 flex justify-around py-2 px-1 text-[11px] font-bold">
-          <NavLink to="/" end className={({ isActive }) => `flex flex-col items-center py-0.5 px-2 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
-            <span className="text-sm">🏠</span>
-            <span>{t.home}</span>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 flex justify-around py-1.5 px-2 text-[11px] font-bold">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
+            <span className="text-base">🏠</span>
+            <span className="mt-0.5">{t.home}</span>
           </NavLink>
-          <NavLink to="/market" className={({ isActive }) => `flex flex-col items-center py-0.5 px-2 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
-            <span className="text-sm">📊</span>
-            <span>{t.trade}</span>
+
+          <NavLink
+            to="/market"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
+            <span className="text-base">📊</span>
+            <span className="mt-0.5">{t.trade}</span>
           </NavLink>
-          <NavLink to="/asset" className={({ isActive }) => `flex flex-col items-center py-0.5 px-2 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
-            <span className="text-sm">🪙</span>
-            <span>{t.asset}</span>
+
+          <NavLink
+            to="/asset"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
+            <span className="text-base">🪙</span>
+            <span className="mt-0.5">{t.asset}</span>
           </NavLink>
-          <NavLink to={currentAccount ? `/user/${currentAccount}` : '/user/demo.btsbots'} className={({ isActive }) => `flex flex-col items-center py-0.5 px-2 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
-            <span className="text-sm">👤</span>
-            <span>{t.account}</span>
+
+          <NavLink
+            to={currentAccount ? `/user/${currentAccount}` : '/user/demo.btsbots'}
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-3 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
+            <span className="text-base">👤</span>
+            <span className="mt-0.5">{t.account}</span>
           </NavLink>
+
           {isLoggedIn && (
-            <NavLink to="/pay" className={({ isActive }) => `flex flex-col items-center py-0.5 px-2 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
-              <span className="text-sm">💸</span>
-              <span>{t.payView}</span>
+            <NavLink
+              to="/pay"
+              className={({ isActive }) =>
+                `flex flex-col items-center py-1 px-3 rounded-2xl transition-all duration-200 ${
+                  isActive
+                    ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                }`
+              }
+            >
+              <span className="text-base">💸</span>
+              <span className="mt-0.5">{t.payView}</span>
             </NavLink>
           )}
         </div>

@@ -7,7 +7,7 @@ import { DDP_CONFIG } from '../../../config/ddpConfig';
 import { 
   parseMongoId, 
   parseMongoTime, 
-  formatFullDateTime, 
+  formatSmartDateTime,
   formatVestingId,
   type VestingDoc, 
   type VestingWithdrawDoc, 
@@ -29,28 +29,30 @@ export const DividendView: React.FC = () => {
   const { t } = useI18n();
   const { currentAccount } = useAuth();
 
-  // 当前主 Tab：'vesting' (分红与流水) | 'invitations' (邀请码与裂变)
   const [activeMainTab, setActiveMainTab] = useState<'vesting' | 'invitations'>('vesting');
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLifetimeMember, setIsLifetimeMember] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  // 邀请码板块内部状态
   const [invitations, setInvitations] = useState<InvitationDoc[]>([]);
   const [inviteTab, setInviteTab] = useState<'unused' | 'used'>('unused');
   const [generateCount, setGenerateCount] = useState<number>(1);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteStatusMsg, setInviteStatusMsg] = useState('');
 
-  // 1. 订阅可领分红 (vesting)、领取历史 (vesting_withdraw)
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.VESTING, { u: currentAccount });
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.VESTING_WITHDRAW, { u: currentAccount });
 
-  const vestings = useCollection<VestingDoc>(
+  // 🌟 核心改进：待领金额为 0 的项自动隐藏，不显示在列表中
+  const rawVestings = useCollection<VestingDoc>(
     DDP_CONFIG.COLLECTIONS.VESTING,
     v => v.u === currentAccount
   );
+
+  const vestings = rawVestings.filter(item => {
+    const claimableAmt = (item.b || 0) * (item.p !== undefined ? item.p : 1.0);
+    return claimableAmt > 0;
+  });
 
   const withdraws = useCollection<VestingWithdrawDoc>(
     DDP_CONFIG.COLLECTIONS.VESTING_WITHDRAW,
@@ -58,7 +60,6 @@ export const DividendView: React.FC = () => {
     (a, b) => parseMongoTime(b.T) - parseMongoTime(a.T)
   );
 
-  // 使用 RPC 获取当前用户 VIP / 终生会员状态
   useEffect(() => {
     const checkVipStatus = async () => {
       if (!currentAccount) return;
@@ -72,7 +73,6 @@ export const DividendView: React.FC = () => {
     checkVipStatus();
   }, [currentAccount]);
 
-  // 拉取邀请码列表
   const fetchInvitations = async () => {
     if (!currentAccount) return;
     try {
@@ -95,7 +95,6 @@ export const DividendView: React.FC = () => {
     }
   }, [activeMainTab, currentAccount]);
 
-  // 生成邀请码
   const handleGenerateInvitations = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLifetimeMember) {
@@ -116,7 +115,6 @@ export const DividendView: React.FC = () => {
     }
   };
 
-  // 删除未使用的邀请码
   const handleDeleteInvitation = async (code: string) => {
     if (!confirm(`确定要删除未使用的邀请码 ${code} 吗？`)) return;
 
@@ -131,14 +129,12 @@ export const DividendView: React.FC = () => {
     }
   };
 
-  // 🌟 统一固定指向生产域名 https://btsbots.com，完美兼容 Web、Capacitor App 与 Tauri 桌面端
   const copyInviteGuideUrl = (code: string) => {
     const inviteUrl = `https://btsbots.com/docs/register_guide.html?invite=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(inviteUrl);
     alert(`🎉 已复制专属邀请注册链接：\n\n${inviteUrl}\n\n好友打开即可查看教程并使用该邀请码完成注册！`);
   };
 
-  // 提现单笔分红
   const handleClaimSingle = async (item: VestingDoc) => {
     const vestingId = formatVestingId(item._id || item.id);
     const claimableAmount = (item.b || 0) * (item.p !== undefined ? item.p : 1.0);
@@ -311,22 +307,25 @@ export const DividendView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-mono">
-                    {withdraws.map((tx) => (
-                      <tr key={parseMongoId(tx._id || tx.id)} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition">
-                        <td className="py-2.5 font-bold text-gray-900 dark:text-white">
-                          🪙 {tx.a}
-                        </td>
-                        <td className="py-2.5 text-emerald-500 font-bold">
-                          +{tx.b?.toLocaleString()}
-                        </td>
-                        <td className="py-2.5 text-gray-400 text-[11px]">
-                          #{tx.B}
-                        </td>
-                        <td className="py-2.5 text-right text-gray-400 text-[11px]" title={formatFullDateTime(tx.T)}>
-                          {new Date(parseMongoTime(tx.T)).toLocaleTimeString()}
-                        </td>
-                      </tr>
-                    ))}
+                    {withdraws.map((tx) => {
+                      const dt = formatSmartDateTime(tx.T);
+                      return (
+                        <tr key={parseMongoId(tx._id || tx.id)} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition">
+                          <td className="py-2.5 font-bold text-gray-900 dark:text-white">
+                            🪙 {tx.a}
+                          </td>
+                          <td className="py-2.5 text-emerald-500 font-bold">
+                            +{tx.b?.toLocaleString()}
+                          </td>
+                          <td className="py-2.5 text-gray-400 text-[11px]">
+                            #{tx.B}
+                          </td>
+                          <td className="py-2.5 text-right text-gray-400 text-[11px]" title={dt.fullStr}>
+                            {dt.dateStr} {dt.timeStr}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -338,7 +337,6 @@ export const DividendView: React.FC = () => {
       {/* 视图 B：邀请码管理 */}
       {activeMainTab === 'invitations' && (
         <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 md:p-6 border border-gray-200 dark:border-gray-700 shadow-sm space-y-5">
-          
           <div className="flex flex-wrap justify-between items-center gap-3 pb-3 border-b border-gray-100 dark:border-gray-700/60">
             <div>
               <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -356,7 +354,6 @@ export const DividendView: React.FC = () => {
             </div>
           </div>
 
-          {/* 生成控制栏 */}
           <div className="p-4 bg-gray-50 dark:bg-gray-900/60 rounded-2xl border border-gray-200 dark:border-gray-700/60 flex flex-wrap justify-between items-center gap-4">
             <div className="text-xs text-gray-500">
               当前未使用邀请码: <b className="text-blue-500 font-mono text-sm">{unusedInviteList.length}</b> / 20 上限
@@ -391,7 +388,6 @@ export const DividendView: React.FC = () => {
             </div>
           )}
 
-          {/* 未使用与已使用分类 Tab */}
           <div className="flex border-b border-gray-100 dark:border-gray-700 gap-4 text-xs font-bold">
             <button
               type="button"
@@ -417,7 +413,6 @@ export const DividendView: React.FC = () => {
             </button>
           </div>
 
-          {/* 列表渲染 */}
           <div className="space-y-2">
             {inviteTab === 'unused' ? (
               unusedInviteList.length === 0 ? (
@@ -425,46 +420,49 @@ export const DividendView: React.FC = () => {
                   暂无未使用的邀请码，点击上方按钮即可一键生成
                 </div>
               ) : (
-                unusedInviteList.map((item) => (
-                  <div
-                    key={item.code}
-                    className="bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-sm text-gray-900 dark:text-white tracking-wide">
-                          {item.code}
-                        </span>
-                        <span className="bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[10px] font-bold">
-                          可使用
-                        </span>
+                unusedInviteList.map((item) => {
+                  const dt = formatSmartDateTime(item.createdAt);
+                  return (
+                    <div
+                      key={item.code}
+                      className="bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-sm text-gray-900 dark:text-white tracking-wide">
+                            {item.code}
+                          </span>
+                          <span className="bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded text-[10px] font-bold">
+                            可使用
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-400 font-mono" title={dt.fullStr}>
+                          创建时间: {dt.dateStr} {dt.timeStr}
+                        </p>
                       </div>
-                      <p className="text-[11px] text-gray-400 font-mono">
-                        创建时间: {formatFullDateTime(item.createdAt)}
-                      </p>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => copyInviteGuideUrl(item.code)}
-                        className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1"
-                        title="复制带有邀请码的专属注册教程链接"
-                      >
-                        <span>🔗</span>
-                        <span>复制专属链接</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteInvitation(item.code)}
-                        disabled={inviteLoading}
-                        className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition"
-                      >
-                        删除
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => copyInviteGuideUrl(item.code)}
+                          className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-500 px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition flex items-center gap-1"
+                          title="复制带有邀请码的专属注册教程链接"
+                        >
+                          <span>🔗</span>
+                          <span>复制专属链接</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteInvitation(item.code)}
+                          disabled={inviteLoading}
+                          className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white px-3 py-1 rounded-xl text-xs font-bold cursor-pointer transition"
+                        >
+                          删除
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )
             ) : (
               usedInviteList.length === 0 ? (
@@ -472,27 +470,30 @@ export const DividendView: React.FC = () => {
                   暂无已被使用的邀请码记录
                 </div>
               ) : (
-                usedInviteList.map((item) => (
-                  <div
-                    key={item.code}
-                    className="bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs opacity-85"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-black text-sm text-gray-500 dark:text-gray-300 tracking-wide line-through">
-                          {item.code}
-                        </span>
-                        <span className="bg-gray-500/10 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold">
-                          已注册
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-gray-400 space-y-0.5">
-                        <p>使用者账号: <b className="text-blue-500 font-mono">{item.usedBy || '未知'}</b></p>
-                        <p className="font-mono">使用时间: {item.usedAt ? formatFullDateTime(item.usedAt) : '--'}</p>
+                usedInviteList.map((item) => {
+                  const dt = formatSmartDateTime(item.usedAt);
+                  return (
+                    <div
+                      key={item.code}
+                      className="bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs opacity-85"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-sm text-gray-500 dark:text-gray-300 tracking-wide line-through">
+                            {item.code}
+                          </span>
+                          <span className="bg-gray-500/10 text-gray-400 px-2 py-0.5 rounded text-[10px] font-bold">
+                            已注册
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-400 space-y-0.5">
+                          <p>使用者账号: <b className="text-blue-500 font-mono">{item.usedBy || '未知'}</b></p>
+                          <p className="font-mono">使用时间: {item.usedAt ? `${dt.dateStr} ${dt.timeStr}` : '--'}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )
             )}
           </div>

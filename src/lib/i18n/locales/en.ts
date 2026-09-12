@@ -98,6 +98,7 @@ export default {
   recentSummary: "Recent Trading Summary",
   orderIntents: "Order Intents",
   placeOrder: "Place",
+  updateOrder: "Update",
   cancelOrder: "Cancel",
   oauthTitle: "Authorization Request",
   oauthSiteDesc: "Website is requesting BitShares identity ownership proof",

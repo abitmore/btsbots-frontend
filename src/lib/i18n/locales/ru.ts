@@ -98,6 +98,7 @@ export default {
   recentSummary: "Сводка торгов",
   orderIntents: "История заявок",
   placeOrder: "Создать",
+  updateOrder: "Update",
   cancelOrder: "Отменить",
   oauthTitle: "Запрос авторизации",
   oauthSiteDesc: "Сайт запрашивает подтверждение аккаунта BitShares",

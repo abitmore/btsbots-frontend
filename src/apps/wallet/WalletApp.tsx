@@ -42,7 +42,6 @@ function TitleUpdater() {
   return null;
 }
 
-// 自动捕获 URL query 参数 (支持 /pay/checkout 和 /oauth/authorize)
 function UniversalRouteHandler({
   onReceivePayParams,
   onReceiveOAuthParams
@@ -60,7 +59,6 @@ function UniversalRouteHandler({
     const site = searchParams.get('site');
     const ip = searchParams.get('ip') || '';
 
-    // 1. 拦截支付直链
     if (location.pathname.includes('/pay') && to) {
       onReceivePayParams(
         to,
@@ -71,7 +69,6 @@ function UniversalRouteHandler({
       );
     }
 
-    // 2. 拦截 OAuth 授权直链
     if (location.pathname.includes('/oauth') && clientId && token && site) {
       onReceiveOAuthParams({
         site,
@@ -96,7 +93,6 @@ function WalletContent() {
 
   const [oauthData, setOauthData] = useState<OAuthChallengeData | null>(null);
 
-  // 支付表单数据
   const [toAccount, setToAccount] = useState('');
   const [payAsset, setPayAsset] = useState('BTS');
   const [amount, setAmount] = useState('');
@@ -225,9 +221,7 @@ function WalletContent() {
             )
           } />
 
-          {/* 兼容支付直链路由 */}
           <Route path="/pay/checkout" element={<Navigate to="/pay" replace />} />
-          {/* 兼容 OAuth 直链路由 */}
           <Route path="/oauth/authorize" element={<Navigate to="/" replace />} />
 
           <Route path="/dividend" element={isLoggedIn ? <DividendView /> : <Navigate to="/login" replace />} />
@@ -236,20 +230,50 @@ function WalletContent() {
         </Routes>
       </main>
 
-      {/* 移动端底部专属 Tab */}
+      {/* 优化后的移动端专属底部 Tab：高亮时底色胶囊、图标立体微放大 */}
       {isLoggedIn && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 flex justify-around py-2 px-1 text-[11px] font-bold">
-          <NavLink to="/" end className={({ isActive }) => `flex flex-col items-center py-0.5 px-3 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md border-t border-gray-200 dark:border-gray-800 flex justify-around py-1.5 px-3 text-[11px] font-bold">
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-4 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
             <span className="text-base">💰</span>
-            <span>{t.wallet}</span>
+            <span className="mt-0.5">{t.wallet}</span>
           </NavLink>
-          <NavLink to="/pay" className={({ isActive }) => `flex flex-col items-center py-0.5 px-3 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+
+          <NavLink
+            to="/pay"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-4 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
             <span className="text-base">💸</span>
-            <span>{t.payView}</span>
+            <span className="mt-0.5">{t.payView}</span>
           </NavLink>
-          <NavLink to="/dividend" className={({ isActive }) => `flex flex-col items-center py-0.5 px-3 rounded-xl ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500'}`}>
+
+          <NavLink
+            to="/dividend"
+            className={({ isActive }) =>
+              `flex flex-col items-center py-1 px-4 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400 font-black shadow-xs scale-105'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+              }`
+            }
+          >
             <span className="text-base">🎁</span>
-            <span>{t.dividend}</span>
+            <span className="mt-0.5">{t.dividend}</span>
           </NavLink>
         </div>
       )}

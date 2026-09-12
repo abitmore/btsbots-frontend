@@ -98,6 +98,7 @@ export default {
   recentSummary: "近期交易汇总",
   orderIntents: "全网委托记录",
   placeOrder: "下单",
+  updateOrder: "更新",
   cancelOrder: "撤单",
   oauthTitle: "第三方应用授权申请",
   oauthSiteDesc: "网站正在申请获取您的比特股身份所有权证明",

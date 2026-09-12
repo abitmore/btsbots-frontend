@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import { useI18n } from '../../../lib/i18n';
 import { useAuth } from '../../../hooks/useAuth';
 import { useFavorites } from '../../../hooks/useFavorites';
@@ -9,11 +9,14 @@ import { DDP_CONFIG } from '../../../config/ddpConfig';
 import { 
   parseMongoId, 
   parseMongoTime, 
-  formatFullDateTime, 
+  formatSmartDateTime,
+  formatSignificantPrice,
   extractBitsharesOrderId,
   type OrderDoc, 
   type FillOrderDoc, 
   type BalanceDoc, 
+  type OrderHistoryDoc, 
+  type PriceDoc,
   type MarketSummaryData 
 } from '../../../types/models';
 import { ddpPool } from '../../../lib/ddp/ddpSubPool';
@@ -27,8 +30,23 @@ export const Market: React.FC = () => {
 
   const [currentPair, setCurrentPair] = useState<string>('BTS_CNY');
   const [searchInput, setSearchInput] = useState<string>('');
+  
+  useEffect(() => {
+    let initial = 'BTS_CNY';
+    if (location.state?.jumpPair) {
+      initial = location.state.jumpPair.replace('/', '_').toUpperCase();
+    }
+    const [b, q] = initial.split('_');
+    const inverted = `${q}_${b}`;
+    if (!favs.markets.includes(initial) && favs.markets.includes(inverted)) {
+      setCurrentPair(inverted);
+    } else {
+      setCurrentPair(initial);
+    }
+  }, [location.state, favs.markets]);
+
   const [baseAsset, quoteAsset] = currentPair.split('_');
-  const databasePair = [baseAsset, quoteAsset].sort().join('_');
+  const databasePair = useMemo(() => [baseAsset, quoteAsset].sort().join('_'), [baseAsset, quoteAsset]);
 
   const [buyPrice, setBuyPrice] = useState('');
   const [buyAmount, setBuyAmount] = useState('');
@@ -40,23 +58,28 @@ export const Market: React.FC = () => {
     price: 0, change: 0, high: 0, low: 0, volume: 0
   });
 
-  useEffect(() => {
-    if (location.state?.jumpPair) {
-      setCurrentPair(location.state.jumpPair.replace('/', '_').toUpperCase());
-    }
-  }, [location.state]);
-
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.ORDER_BOOK, baseAsset, quoteAsset);
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.ORDER_BOOK, quoteAsset, baseAsset);
-  // 1. 订阅该市场的全网成交
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.FILL_ORDER, { m: databasePair });
-  // 2. 专项订阅当前登录用户在该市场的成交
+  useDdpSubscription(DDP_CONFIG.PUBLICATIONS.ORDER_HISTORY, { m: databasePair });
   if (currentAccount) {
     useDdpSubscription(DDP_CONFIG.PUBLICATIONS.FILL_ORDER, { m: databasePair, u: currentAccount });
+    useDdpSubscription(DDP_CONFIG.PUBLICATIONS.ORDER_HISTORY, { u: currentAccount });
   }
   useDdpSubscription(DDP_CONFIG.PUBLICATIONS.BALANCE, { u: currentAccount });
+  useDdpSubscription(DDP_CONFIG.PUBLICATIONS.PRICE);
 
-  // 买卖盘口深度数据
+  const prices = useCollection<PriceDoc>(DDP_CONFIG.COLLECTIONS.PRICE);
+  const guidancePrice = useMemo(() => {
+    const baseP = prices.find(p => p.a === baseAsset)?.p;
+    const quoteP = prices.find(p => p.a === quoteAsset)?.p;
+    if (baseP && quoteP && quoteP > 0) {
+      return baseP / quoteP;
+    }
+    if (baseP && quoteAsset === 'CNY') return baseP;
+    return null;
+  }, [prices, baseAsset, quoteAsset]);
+
   const rawAsks = useCollection<OrderDoc>(
     DDP_CONFIG.COLLECTIONS.ORDER,
     o => o.a?.s === baseAsset && o.a?.b === quoteAsset,
@@ -69,7 +92,6 @@ export const Market: React.FC = () => {
     (a, b) => (1 / (b.p || 1)) - (1 / (a.p || 1))
   );
 
-  // 撮合成交历史
   const rawTrades = useCollection<FillOrderDoc>(
     DDP_CONFIG.COLLECTIONS.FILL_ORDER,
     tr => tr.m === databasePair,
@@ -82,43 +104,41 @@ export const Market: React.FC = () => {
     const amount = tr.a && tr.a[0] === baseAsset ? (tr.b?.[0] || 0) : (tr.b?.[1] || tr.b?.[0] || 0);
     const isBuyerTaker = tr.t_side === 'buy' || (tr.a && tr.a[0] === quoteAsset);
 
-    // 🌟 判定当前用户的买卖方向
-    let myAction: 'buy' | 'sell' | null = null;
-    if (currentAccount && Array.isArray(tr.u)) {
-      const isTaker = tr.u[0] === currentAccount;
-      const isMaker = tr.u[1] === currentAccount;
-
-      if (isTaker) {
-        // Taker 是卖出 tr.a[0] 得到 tr.a[1]
-        myAction = tr.a?.[0] === baseAsset ? 'sell' : 'buy';
-      } else if (isMaker) {
-        // Maker 是 Taker 的交易对手方
-        myAction = tr.a?.[0] === baseAsset ? 'buy' : 'sell';
-      }
-    }
+    const takerUser = tr.u?.[0] || '--';
+    const makerUser = tr.u?.[1] || '--';
+    const isRelatedToMe = !!(currentAccount && (takerUser === currentAccount || makerUser === currentAccount));
 
     return {
       ...tr,
       displayPrice: unifiedPrice,
       displayAmount: amount,
       isBuyerTaker,
-      myAction
+      takerUser,
+      makerUser,
+      isRelatedToMe,
+      isTakerMe: currentAccount && takerUser === currentAccount,
+      isMakerMe: currentAccount && makerUser === currentAccount
     };
   });
+
+  const allOrderHistory = useCollection<OrderHistoryDoc>(
+    DDP_CONFIG.COLLECTIONS.ORDER_HISTORY,
+    oh => oh.m === databasePair || oh.m === currentPair || (Array.isArray(oh.a) && oh.a.includes(baseAsset) && oh.a.includes(quoteAsset)),
+    (a, b) => parseMongoTime(b.T) - parseMongoTime(a.T)
+  );
 
   const balances = useCollection<BalanceDoc>(DDP_CONFIG.COLLECTIONS.BALANCE, b => b.u === currentAccount);
   const baseBal = balances.find(b => b.a === baseAsset)?.f || 0;
   const quoteBal = balances.find(b => b.a === quoteAsset)?.f || 0;
 
-  // 自动填充初始下单价
   useEffect(() => {
     if (rawAsks.length > 0 && !buyPrice) {
       const bestAsk = rawAsks[0].p;
-      if (bestAsk) setBuyPrice(bestAsk.toFixed(4));
+      if (bestAsk) setBuyPrice(formatSignificantPrice(bestAsk));
     }
     if (rawBids.length > 0 && !sellPrice) {
       const bestBid = rawBids[0].p ? (1 / rawBids[0].p) : 0;
-      if (bestBid) setSellPrice(bestBid.toFixed(4));
+      if (bestBid) setSellPrice(formatSignificantPrice(bestBid));
     }
   }, [rawAsks, rawBids]);
 
@@ -267,17 +287,37 @@ export const Market: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap gap-4 text-xs font-mono">
-          <div><span className="text-gray-400 block">{t.lastPrice}</span><b className="text-blue-500 text-sm md:text-base">{summary.price?.toFixed(4)}</b></div>
-          <div><span className="text-gray-400 block">{t.change24h}</span><b className={`text-xs md:text-sm ${summary.change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>{summary.change >= 0 ? '+' : ''}{summary.change?.toFixed(2)}%</b></div>
-          <div><span className="text-gray-400 block">{t.high24h}</span><b className="text-xs md:text-sm">{summary.high?.toFixed(4)}</b></div>
-          <div><span className="text-gray-400 block">{t.low24h}</span><b className="text-xs md:text-sm">{summary.low?.toFixed(4)}</b></div>
+          <div>
+            <span className="text-gray-400 block">{t.lastPrice}</span>
+            <b className="text-blue-500 text-sm md:text-base">{formatSignificantPrice(summary.price)}</b>
+          </div>
+
+          {guidancePrice !== null && (
+            <div>
+              <span className="text-gray-400 block">指导价</span>
+              <b className="text-purple-500 text-sm md:text-base">{formatSignificantPrice(guidancePrice)}</b>
+            </div>
+          )}
+
+          <div>
+            <span className="text-gray-400 block">{t.change24h}</span>
+            <b className={`text-xs md:text-sm ${summary.change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+              {summary.change >= 0 ? '+' : ''}{summary.change?.toFixed(2)}%
+            </b>
+          </div>
+          <div>
+            <span className="text-gray-400 block">{t.high24h}</span>
+            <b className="text-xs md:text-sm">{formatSignificantPrice(summary.high)}</b>
+          </div>
+          <div>
+            <span className="text-gray-400 block">{t.low24h}</span>
+            <b className="text-xs md:text-sm">{formatSignificantPrice(summary.low)}</b>
+          </div>
         </div>
       </div>
 
       {/* 下单面板 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        
-        {/* 买单 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-5 shadow-sm space-y-3">
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-bold text-emerald-500">🟢 {t.buyAsset} {baseAsset}</h4>
@@ -294,6 +334,7 @@ export const Market: React.FC = () => {
           </div>
           <input
             type="number"
+            step="any"
             placeholder={`${t.price} (${quoteAsset})`}
             value={buyPrice}
             onChange={(e) => setBuyPrice(e.target.value)}
@@ -301,6 +342,7 @@ export const Market: React.FC = () => {
           />
           <input
             type="number"
+            step="any"
             placeholder={`${t.quantity} (${baseAsset})`}
             value={buyAmount}
             onChange={(e) => setBuyAmount(e.target.value)}
@@ -315,7 +357,6 @@ export const Market: React.FC = () => {
           </button>
         </div>
 
-        {/* 卖单 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-5 shadow-sm space-y-3">
           <div className="flex justify-between items-center">
             <h4 className="text-sm font-bold text-red-500">🔴 {t.sellAsset} {baseAsset}</h4>
@@ -332,6 +373,7 @@ export const Market: React.FC = () => {
           </div>
           <input
             type="number"
+            step="any"
             placeholder={`${t.price} (${quoteAsset})`}
             value={sellPrice}
             onChange={(e) => setSellPrice(e.target.value)}
@@ -339,6 +381,7 @@ export const Market: React.FC = () => {
           />
           <input
             type="number"
+            step="any"
             placeholder={`${t.quantity} (${baseAsset})`}
             value={sellAmount}
             onChange={(e) => setSellAmount(e.target.value)}
@@ -352,13 +395,10 @@ export const Market: React.FC = () => {
             {t.priceLimit} {t.sellAsset} {baseAsset}
           </button>
         </div>
-
       </div>
 
       {/* 盘口与成交明细 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
-        
-        {/* 买盘 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 shadow-sm flex flex-col h-full">
           <h4 className="text-xs font-bold text-emerald-500 mb-2 uppercase tracking-wider">{t.bidsBook} ({rawBids.length})</h4>
           
@@ -376,7 +416,7 @@ export const Market: React.FC = () => {
               return (
                 <div key={parseMongoId(o.id || o._id)} className="flex items-center justify-between py-0.5 font-mono">
                   <div className="w-[40%] flex items-center gap-1 overflow-hidden">
-                    <span className="text-emerald-500 font-bold">{priceVal.toFixed(4)}</span>
+                    <span className="text-emerald-500 font-bold">{formatSignificantPrice(priceVal)}</span>
                     {isMine && (
                       <button
                         onClick={() => handleCancelOrder(o)}
@@ -388,14 +428,15 @@ export const Market: React.FC = () => {
                     )}
                   </div>
                   <span className="w-[35%] text-right text-gray-800 dark:text-gray-200">{amountVal.toFixed(2)}</span>
-                  <span className="w-[25%] text-right text-gray-400 truncate text-[11px]" title={o.u}>{o.u}</span>
+                  <Link to={`/user/${o.u}`} className="w-[25%] text-right text-blue-500 hover:underline truncate text-[11px]" title={o.u}>
+                    {o.u}
+                  </Link>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* 卖盘 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 shadow-sm flex flex-col h-full">
           <h4 className="text-xs font-bold text-red-500 mb-2 uppercase tracking-wider">{t.asksBook} ({rawAsks.length})</h4>
           
@@ -411,7 +452,7 @@ export const Market: React.FC = () => {
               return (
                 <div key={parseMongoId(o.id || o._id)} className="flex items-center justify-between py-0.5 font-mono">
                   <div className="w-[40%] flex items-center gap-1 overflow-hidden">
-                    <span className="text-red-500 font-bold">{o.p?.toFixed(4)}</span>
+                    <span className="text-red-500 font-bold">{formatSignificantPrice(o.p)}</span>
                     {isMine && (
                       <button
                         onClick={() => handleCancelOrder(o)}
@@ -423,69 +464,150 @@ export const Market: React.FC = () => {
                     )}
                   </div>
                   <span className="w-[35%] text-right text-gray-800 dark:text-gray-200">{o.b?.toFixed(2)}</span>
-                  <span className="w-[25%] text-right text-gray-400 truncate text-[11px]" title={o.u}>{o.u}</span>
+                  <Link to={`/user/${o.u}`} className="w-[25%] text-right text-blue-500 hover:underline truncate text-[11px]" title={o.u}>
+                    {o.u}
+                  </Link>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* 🌟 成交历史 (区分我买入和我卖出) */}
+        {/* 成交历史：Taker / Maker 分两行，关联当前用户时背景高亮 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 shadow-sm flex flex-col h-full">
           <h4 className="text-xs font-bold text-blue-500 mb-2 uppercase tracking-wider">{t.tradeHistory} ({processedTrades.length})</h4>
           
           <div className="flex justify-between text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
-            <span className="w-[34%]">{t.time}</span>
-            <span className="w-[34%] text-right">{t.price}</span>
-            <span className="w-[32%] text-right">{t.amount}</span>
+            <span className="w-[32%]">{t.time}</span>
+            <span className="w-[25%] text-right">{t.price}</span>
+            <span className="w-[19%] text-right">{t.amount}</span>
+            <span className="w-[24%] text-right">Taker / Maker</span>
           </div>
 
-          <div className="space-y-1 max-h-72 overflow-y-auto pr-1 flex-1 font-mono text-xs">
+          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 flex-1 font-mono text-xs">
             {processedTrades.map(tr => {
-              const isMyBuy = tr.myAction === 'buy';
-              const isMySell = tr.myAction === 'sell';
-              const isMyTrade = isMyBuy || isMySell;
+              const dt = formatSmartDateTime(tr.T);
 
               return (
                 <div 
                   key={parseMongoId(tr.id || tr._id)} 
-                  className={`flex justify-between items-center py-1 px-1.5 rounded-lg border-b border-gray-100 dark:border-gray-800/40 ${
-                    isMyBuy ? 'bg-emerald-500/10 border-emerald-500/30' : (isMySell ? 'bg-red-500/10 border-red-500/30' : '')
+                  className={`flex justify-between items-center py-1.5 px-2 rounded-xl border transition-all ${
+                    tr.isRelatedToMe 
+                      ? 'bg-blue-500/15 border-blue-500/40 shadow-xs' 
+                      : 'border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30'
                   }`}
                 >
-                  <div className="w-[34%] flex items-center gap-1">
-                    <span className="text-gray-400 text-[11px]" title={formatFullDateTime(tr.T)}>
-                      {new Date(parseMongoTime(tr.T)).toLocaleTimeString()}
-                    </span>
-                    {isMyBuy && (
-                      <span className="bg-emerald-600 text-white text-[9px] font-black px-1 py-0.2 rounded shrink-0">
-                        我买
-                      </span>
-                    )}
-                    {isMySell && (
-                      <span className="bg-red-600 text-white text-[9px] font-black px-1 py-0.2 rounded shrink-0">
-                        我卖
-                      </span>
-                    )}
+                  <div className="w-[32%] flex flex-col" title={dt.fullStr}>
+                    <span className="text-gray-800 dark:text-gray-200 text-[11px] leading-tight font-medium">{dt.dateStr}</span>
+                    <span className="text-gray-400 text-[10px] leading-tight mt-0.5">{dt.timeStr}</span>
                   </div>
 
-                  <span className={`w-[34%] text-right font-bold ${
-                    isMyTrade 
-                      ? (isMyBuy ? 'text-emerald-500' : 'text-red-500') 
-                      : (tr.isBuyerTaker ? 'text-emerald-500' : 'text-red-500')
-                  }`}>
-                    {tr.displayPrice?.toFixed(4)}
+                  <span className={`w-[25%] text-right font-bold ${tr.isBuyerTaker ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {formatSignificantPrice(tr.displayPrice)}
                   </span>
                   
-                  <span className="w-[32%] text-right text-gray-800 dark:text-gray-300">
+                  <span className="w-[19%] text-right text-gray-800 dark:text-gray-300">
                     {tr.displayAmount?.toFixed(2)}
                   </span>
+
+                  <div className="w-[24%] flex flex-col items-end text-[10px] truncate leading-tight">
+                    <div className="flex items-center gap-0.5 truncate max-w-full">
+                      <span className="text-gray-400 text-[9px] shrink-0">T:</span>
+                      <Link
+                        to={`/user/${tr.takerUser}`}
+                        className={`truncate hover:underline ${tr.isTakerMe ? 'text-amber-500 font-extrabold' : 'text-blue-500'}`}
+                        title={`Taker: ${tr.takerUser}`}
+                      >
+                        {tr.takerUser}
+                      </Link>
+                    </div>
+
+                    <div className="flex items-center gap-0.5 truncate max-w-full mt-0.5">
+                      <span className="text-gray-400 text-[9px] shrink-0">M:</span>
+                      <Link
+                        to={`/user/${tr.makerUser}`}
+                        className={`truncate hover:underline ${tr.isMakerMe ? 'text-amber-500 font-extrabold' : 'text-gray-400'}`}
+                        title={`Maker: ${tr.makerUser}`}
+                      >
+                        {tr.makerUser}
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
+      </div>
 
+      {/* 市场全网下单流水：展示所有人，我的记录高亮，下单换色，无市场列，时间带标准间距 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wider">
+            📋 市场全网下单流水 ({allOrderHistory.length})
+          </h3>
+          <span className="text-[11px] text-gray-400 font-mono">当前市场: {baseAsset}/{quoteAsset}</span>
+        </div>
+
+        <div className="grid grid-cols-12 text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
+          <span className="col-span-4 sm:col-span-3">{t.time}</span>
+          <span className="col-span-3 sm:col-span-3">用户</span>
+          <span className="col-span-2 sm:col-span-2">{t.action}</span>
+          <span className="col-span-3 sm:col-span-4 text-right">{t.price}</span>
+        </div>
+
+        <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 font-mono text-xs">
+          {allOrderHistory.length === 0 ? (
+            <p className="text-xs text-gray-400 py-4 text-center">{t.noData}</p>
+          ) : (
+            allOrderHistory.map(oh => {
+              const dt = formatSmartDateTime(oh.T);
+              const isMine = currentAccount && oh.u === currentAccount;
+
+              return (
+                <div 
+                  key={parseMongoId(oh._id)} 
+                  className={`grid grid-cols-12 py-1.5 px-2 rounded-xl items-center border transition-all ${
+                    isMine 
+                      ? 'bg-amber-500/10 border-amber-500/30 shadow-xs' 
+                      : 'border-gray-100 dark:border-gray-800/40 hover:bg-gray-50 dark:hover:bg-gray-800/20'
+                  }`}
+                >
+                  <div className="col-span-4 sm:col-span-3 flex flex-col" title={dt.fullStr}>
+                    <span className="text-gray-800 dark:text-gray-200 text-[11px] leading-tight font-medium">{dt.dateStr}</span>
+                    <span className="text-gray-400 text-[10px] leading-tight mt-0.5">{dt.timeStr}</span>
+                  </div>
+
+                  <div className="col-span-3 sm:col-span-3 truncate">
+                    <Link 
+                      to={`/user/${oh.u}`} 
+                      className={`truncate hover:underline ${isMine ? 'text-amber-500 font-black' : 'text-blue-500'}`}
+                      title={oh.u}
+                    >
+                      {oh.u}
+                    </Link>
+                  </div>
+
+                  <div className="col-span-2 sm:col-span-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${
+                      oh.t === 1 
+                        ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30' 
+                        : (oh.t === 2 
+                            ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30' 
+                            : 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30')
+                    }`}>
+                      {oh.t === 1 ? t.placeOrder : (oh.t === 77 ? t.updateOrder : t.cancelOrder)}
+                    </span>
+                  </div>
+
+                  <span className="col-span-3 sm:col-span-4 text-right font-bold text-gray-900 dark:text-gray-100">
+                    {formatSignificantPrice(oh.p)}
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
 
     </div>

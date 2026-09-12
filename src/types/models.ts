@@ -47,6 +47,52 @@ export function formatFullDateTime(t: string | number | Date | undefined | null)
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+/**
+ * 智能时间拆分，方便移动端紧凑展示年月日与时分秒
+ */
+export function formatSmartDateTime(t: string | number | Date | undefined | null): { dateStr: string; timeStr: string; fullStr: string } {
+  const ms = parseMongoTime(t);
+  if (!ms) return { dateStr: '--', timeStr: '--', fullStr: '--' };
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const dateStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const timeStr = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return {
+    dateStr,
+    timeStr,
+    fullStr: `${dateStr} ${timeStr}`
+  };
+}
+
+/**
+ * 价格有效位数格式化：保证至少 minSig 位有效数字，避免类似 0.000153432 被截断
+ */
+export function formatSignificantPrice(val: number | string | undefined | null, minSig = 3): string {
+  if (val === null || val === undefined || val === '') return '--';
+  const num = Number(val);
+  if (isNaN(num)) return '--';
+  if (num === 0) return '0.00';
+
+  const absNum = Math.abs(num);
+  if (absNum >= 1) {
+    if (absNum >= 10000) {
+      return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+    }
+    return num.toFixed(4).replace(/\.?0+$/, '');
+  }
+
+  // 小于 1 的小数，匹配首个非 0 位并保留至少 minSig 位有效数字
+  const str = num.toFixed(10);
+  const match = str.match(/^0\.(0*)([1-9]\d*)/);
+  if (match) {
+    const zeroCount = match[1].length;
+    const decimals = Math.min(8, Math.max(4, zeroCount + minSig));
+    return num.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '');
+  }
+
+  return num.toFixed(4);
+}
+
 export interface GlobalPropertyDoc {
   _id?: MongoId;
   id?: MongoId;
@@ -142,7 +188,7 @@ export interface OrderHistoryDoc {
   b: number;
   m: string;
   p: number;
-  t: 1 | 2;
+  t: 1 | 2 | 77;
   u: string;
   [key: string]: any;
 }
@@ -184,11 +230,11 @@ export interface WalletPaymentMetadataDoc {
 export interface VestingDoc {
   _id: MongoId;
   id?: MongoId;
-  a: string;      // 资产符号, e.g. 'BTS'
-  b: number;      // 总金额
-  p: number;      // 可领比例, e.g. 1.0 (100%)
-  t: number;      // 0: unspecified, 1: cashback, 2: worker, 3: witness, 4: market_fee_sharing
-  u: string;      // 用户名
+  a: string;
+  b: number;
+  p: number;
+  t: number;
+  u: string;
 }
 
 export interface VestingWithdrawDoc {
@@ -196,9 +242,9 @@ export interface VestingWithdrawDoc {
   id?: MongoId;
   B: number;
   T: string | number | Date;
-  a: string;      // 资产符号
-  b: number;      // 领取金额
-  u: string;      // 用户名
+  a: string;
+  b: number;
+  u: string;
 }
 
 export interface InvitationDoc {

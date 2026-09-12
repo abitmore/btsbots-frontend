@@ -26,7 +26,7 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
     if (!currentAccount) return;
     try {
       setLoading(true);
-      const list = await ddpPool.call<InvitationDoc[]>(DDP_CONFIG.METHODS.LIST_INVITATIONS, currentAccount);
+      const list = await ddpPool.call<InvitationDoc[]>(DDP_CONFIG.METHODS.LIST_INVITATIONS);
       if (Array.isArray(list)) {
         setInvitations(list);
       }
@@ -54,7 +54,7 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
     try {
       setLoading(true);
       setStatusMsg('');
-      const res = await ddpPool.call(DDP_CONFIG.METHODS.GENERATE_INVITATION, currentAccount, generateCount);
+      const res = await ddpPool.call(DDP_CONFIG.METHODS.GENERATE_INVITATION, generateCount);
       setStatusMsg(res?.message || '邀请码生成成功！');
       await fetchInvitations();
     } catch (err: any) {
@@ -69,7 +69,7 @@ export const InvitationModal: React.FC<InvitationModalProps> = ({
 
     try {
       setLoading(true);
-      await ddpPool.call(DDP_CONFIG.METHODS.DELETE_INVITATION, currentAccount, code);
+      await ddpPool.call(DDP_CONFIG.METHODS.DELETE_INVITATION, code);
       setInvitations(prev => prev.filter(item => item.code !== code));
     } catch (err: any) {
       alert(`删除失败: ${err.message || err.reason}`);
