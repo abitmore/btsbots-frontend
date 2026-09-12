@@ -140,7 +140,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <span className="font-extrabold text-sm text-gray-900 dark:text-white font-mono">★ {b.a}</span>
               <div className="flex items-center gap-2">
                 <span className="font-mono font-bold text-sm text-gray-800 dark:text-gray-100">{b.f.toLocaleString()}</span>
-                {/* 🌟 核心改进：将占用大面积空间的隐藏按钮重构成精简轻量的灰度小图标 */}
                 <button
                   onClick={() => handleHideAsset(b.a)}
                   className="opacity-40 hover:opacity-100 text-gray-400 hover:text-red-500 p-1 rounded-md transition cursor-pointer"
@@ -154,7 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 历史流水面板 (🌟 核心改进：移动端转为自适应卡片流，显示完整年月日；PC端保持宽表格) */}
+      {/* 历史流水面板 */}
       <div className="bg-white dark:bg-gray-800 rounded-3xl p-5 md:p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
         <h3 className="text-base font-bold mb-3 text-gray-800 dark:text-gray-200">📜 {t.history}</h3>
         
@@ -162,7 +161,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-xs text-gray-400 py-6 text-center">{t.noHistory}</p>
         ) : (
           <>
-            {/* 手机端紧凑卡片流：无需向左滑动，垂直排版两行展示，清晰看到交易对方、金额、年月日与时间 */}
+            {/* 手机端紧凑卡片流：标准符号 OUT → / IN ←，彻底消除字形乱码 */}
             <div className="md:hidden space-y-2.5 divide-y divide-gray-100 dark:divide-gray-700/50">
               {pairedTransfers.map(tx => {
                 const dt = formatSmartDateTime(tx!.T);
@@ -171,7 +170,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <div className="flex justify-between items-center text-xs">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className={`font-black text-[11px] px-1.5 py-0.5 rounded ${tx!.isOut ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                          {tx!.isOut ? 'OUT ➔' : 'IN 🠔'}
+                          {tx!.isOut ? 'OUT →' : 'IN ←'}
                         </span>
                         <button
                           type="button"
@@ -210,7 +209,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               })}
             </div>
 
-            {/* PC端桌面大表格 */}
+            {/* PC端桌面表格：使用安全字符 OUT → / IN ← */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs text-gray-700 dark:text-gray-300">
                 <thead>
@@ -227,7 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     return (
                       <tr key={parseMongoId(tx!._id)} className="hover:bg-gray-50 dark:hover:bg-gray-750 transition">
                         <td className={`py-2.5 font-extrabold ${tx!.isOut ? 'text-red-500' : 'text-emerald-500'}`}>
-                          {tx!.isOut ? 'OUT ➔' : 'IN 🠔'}
+                          {tx!.isOut ? 'OUT →' : 'IN ←'}
                         </td>
                         <td className="py-2.5">
                           <button
@@ -252,7 +251,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         </td>
                         <td className="py-2.5 font-bold">{tx!.b} {tx!.a}</td>
                         <td className="py-2.5 text-right text-gray-400 text-[11px]" title={dt.fullStr}>
-                          {dt.dateStr} {dt.timeStr}
+                          <span className="text-gray-700 dark:text-gray-300 mr-1.5">{dt.dateStr}</span>
+                          <span>{dt.timeStr}</span>
                         </td>
                       </tr>
                     );

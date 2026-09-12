@@ -84,8 +84,11 @@ export const Home: React.FC = () => {
     ? parseMongoTime(latestBlockDoc.T) 
     : (latestTradeDoc?.T ? parseMongoTime(latestTradeDoc.T) : (latestTxDoc?.T ? parseMongoTime(latestTxDoc.T) : 0));
 
-  const timeDiffSec = blockTimeMs > 0 ? Math.floor((nowTime - blockTimeMs) / 1000) : 999;
+  const timeDiffSec = blockTimeMs > 0 ? Math.floor((nowTime - blockTimeMs) / 1000) : 0;
   const isHealthy = blockTimeMs > 0 && timeDiffSec <= 30;
+
+  // 固定输出格式 (Xs)，杜绝抖动
+  const safeDelaySeconds = (timeDiffSec >= 0 && timeDiffSec < 3600) ? timeDiffSec : 0;
 
   const blockDt = formatSmartDateTime(blockTimeMs);
 
@@ -99,15 +102,16 @@ export const Home: React.FC = () => {
             <span
               className={`w-3 h-3 rounded-full transition-colors ${isHealthy ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500 shadow-[0_0_8px_#ef4444]'}`}
             />
-            <span className={`font-bold ${isHealthy ? 'text-emerald-500' : 'text-red-500'}`}>
-              {isHealthy ? t.liveSync : t.delayed} {timeDiffSec >= 0 && timeDiffSec < 3600 && `(${timeDiffSec}s)`}
+            <span className={`font-bold inline-flex items-center gap-1 ${isHealthy ? 'text-emerald-500' : 'text-red-500'}`}>
+              <span>{isHealthy ? t.liveSync : t.delayed}</span>
+              <span className="font-mono">({safeDelaySeconds}s)</span>
             </span>
           </span>
           <span className="text-gray-300 dark:text-gray-700">|</span>
-          <span>{t.blockNumber}: <strong className="font-mono text-blue-500 text-base">#{latestBlockNum}</strong></span>
+          <span>{t.blockNumber}: <strong className="font-mono text-blue-500 text-base">{latestBlockNum}</strong></span>
           <span className="text-gray-300 dark:text-gray-700">|</span>
           <span className="text-gray-400 font-mono">
-            ⏱️ {blockTimeMs ? `${blockDt.dateStr} ${blockDt.timeStr}` : '--'}
+            ⏱️ {blockTimeMs ? `${blockDt.timeStr}` : '--'}
           </span>
         </div>
       </div>
@@ -221,7 +225,7 @@ export const Home: React.FC = () => {
           </div>
         </div>
 
-        {/* 🌟 核心改进：首页全网委托记录中，“下单”换成专属青蓝配色，市场按 oh.a (sell/buy) 标准展示 */}
+        {/* 首页委托记录 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-5 shadow-sm flex flex-col">
           <h3 className="text-sm font-extrabold text-amber-500 mb-3.5 uppercase tracking-wider">📋 {t.orderIntents}</h3>
           <div className="grid grid-cols-12 text-xs text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-2 mb-2">

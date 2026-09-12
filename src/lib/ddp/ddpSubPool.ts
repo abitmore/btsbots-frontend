@@ -31,7 +31,6 @@ class DDPSubscriptionPool {
       (window as any).ddp = this;
     }
 
-    // 🌟 守护定时器：防止网络弱/未连上时页面一直卡死在“正在恢复安全会话...”
     setTimeout(() => {
       if (this.isResuming) {
         console.warn('[DDP] 会话恢复超时，强制解除阻塞');
@@ -57,6 +56,7 @@ class DDPSubscriptionPool {
     this.client.on('connected', async () => {
       this.isConnected = true;
       await this.resumeSession();
+      // 🌟 连接建立且完成会话检查后，稳妥向服务端冲刷所有订阅
       this.reSubAll();
       this.notifyStatus();
     });
@@ -90,7 +90,6 @@ class DDPSubscriptionPool {
     this.isResuming = true;
     this.notifyStatus();
 
-    // 增加带 3 秒超时的 Promise 包装
     const loginPromise = this.client.call('login', { resume: token });
     const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Timeout')), 3000));
 
@@ -114,25 +113,45 @@ class DDPSubscriptionPool {
     return null;
   }
 
-  private reSubAll() {
+  public reSubAll() {
     for (const item of this.pool.values()) {
       this.rawSendSub(item.subId, item.name, item.params);
     }
   }
 
+  /**
+   * 🌟 核心改进：发送订阅包，若当前尚未握手完毕，自动推入微队列或延迟重试，决不静默丢弃
+   */
   public rawSendSub(id: string, name: string, params: any[]) {
-    try {
-      const socket = this.client?.ddpConnection?.socket;
-      if (socket && socket.rawSocket && socket.rawSocket.readyState === WebSocket.OPEN) {
-        socket.send({
-          msg: 'sub',
-          id: id,
-          name: name,
-          params: params
-        });
+    const send = () => {
+      try {
+        const socket = this.client?.ddpConnection?.socket;
+        if (socket && socket.rawSocket && socket.rawSocket.readyState === WebSocket.OPEN) {
+          socket.send({
+            msg: 'sub',
+            id: id,
+            name: name,
+            params: params
+          });
+          return true;
+        }
+      } catch (e) {
+        console.error('[DDP] 发送 sub 失败:', e);
       }
-    } catch (e) {
-      console.error('[DDP] 发送 sub 失败:', e);
+      return false;
+    };
+
+    const sent = send();
+    if (!sent) {
+      // 正在握手连接中，微延迟重试直到真正发出
+      const retryTimer = setInterval(() => {
+        if (send()) {
+          clearInterval(retryTimer);
+        }
+      }, 200);
+
+      // 8秒超时清理
+      setTimeout(() => clearInterval(retryTimer), 8000);
     }
   }
 
@@ -157,6 +176,10 @@ class DDPSubscriptionPool {
     if (this.pool.has(paramsKey)) {
       const item = this.pool.get(paramsKey)!;
       item.lastUsed = now;
+      // 若已有记录但在断线重连中，触发一次有保障的重发
+      if (this.isConnected) {
+        this.rawSendSub(item.subId, item.name, item.params);
+      }
       return item.subId;
     }
 
@@ -189,6 +212,7 @@ class DDPSubscriptionPool {
     };
 
     this.pool.set(paramsKey, newItem);
+    // 触发带就绪队列保障的发送
     this.rawSendSub(subId, name, params);
 
     return subId;

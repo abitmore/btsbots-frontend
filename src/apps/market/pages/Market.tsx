@@ -121,11 +121,47 @@ export const Market: React.FC = () => {
     };
   });
 
-  const allOrderHistory = useCollection<OrderHistoryDoc>(
+  // 🌟 核心改进：全网下单记录统一换算为当前页面的 quote/base，并识别买单/卖单
+  const rawOrderHistory = useCollection<OrderHistoryDoc>(
     DDP_CONFIG.COLLECTIONS.ORDER_HISTORY,
     oh => oh.m === databasePair || oh.m === currentPair || (Array.isArray(oh.a) && oh.a.includes(baseAsset) && oh.a.includes(quoteAsset)),
     (a, b) => parseMongoTime(b.T) - parseMongoTime(a.T)
   );
+
+  const processedOrderHistory = rawOrderHistory.map(oh => {
+    // 判断买卖方向：在当前市场 baseAsset/quoteAsset 中：
+    // 如果卖出的是 baseAsset，换得的是 quoteAsset，则是【卖单】；
+    // 如果卖出的是 quoteAsset，换得的是 baseAsset，则是【买单】。
+    let orderSide: 'buy' | 'sell' = 'buy';
+    let unifiedPrice = oh.p || 0;
+
+    if (Array.isArray(oh.a) && oh.a.length >= 2) {
+      const sellAsset = oh.a[0];
+      const buyAsset = oh.a[1];
+
+      if (sellAsset === baseAsset && buyAsset === quoteAsset) {
+        // 卖出 baseAsset，价格本身就是 Quote/Base
+        orderSide = 'sell';
+        unifiedPrice = oh.p || 0;
+      } else if (sellAsset === quoteAsset && buyAsset === baseAsset) {
+        // 卖出 quoteAsset 买入 baseAsset，属于买单
+        // 原 p 为 Base/Quote，统一为当前市场的 Quote/Base 价格必须取倒数
+        orderSide = 'buy';
+        unifiedPrice = oh.p > 0 ? (1 / oh.p) : 0;
+      } else {
+        // 降级兜底
+        orderSide = oh.p < 1 ? 'buy' : 'sell';
+      }
+    } else {
+      orderSide = 'buy';
+    }
+
+    return {
+      ...oh,
+      orderSide,
+      unifiedPrice
+    };
+  });
 
   const balances = useCollection<BalanceDoc>(DDP_CONFIG.COLLECTIONS.BALANCE, b => b.u === currentAccount);
   const baseBal = balances.find(b => b.a === baseAsset)?.f || 0;
@@ -473,7 +509,7 @@ export const Market: React.FC = () => {
           </div>
         </div>
 
-        {/* 成交历史：Taker / Maker 分两行，关联当前用户时背景高亮 */}
+        {/* 成交历史 */}
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 shadow-sm flex flex-col h-full">
           <h4 className="text-xs font-bold text-blue-500 mb-2 uppercase tracking-wider">{t.tradeHistory} ({processedTrades.length})</h4>
           
@@ -540,29 +576,30 @@ export const Market: React.FC = () => {
         </div>
       </div>
 
-      {/* 市场全网下单流水：展示所有人，我的记录高亮，下单换色，无市场列，时间带标准间距 */}
+      {/* 🌟 核心改进：全网下单记录价格统一到当前市场的 Quote/Base，颜色区分买单(绿)/卖单(红) */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-4 md:p-5 shadow-sm">
         <div className="flex justify-between items-center mb-2">
           <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wider">
-            📋 市场全网下单流水 ({allOrderHistory.length})
+            📋 市场全网下单流水 ({processedOrderHistory.length})
           </h3>
-          <span className="text-[11px] text-gray-400 font-mono">当前市场: {baseAsset}/{quoteAsset}</span>
+          <span className="text-[11px] text-gray-400 font-mono">统一计价: 1 {baseAsset} = X {quoteAsset}</span>
         </div>
 
         <div className="grid grid-cols-12 text-[11px] text-gray-400 font-bold border-b border-gray-200 dark:border-gray-800 pb-1.5 mb-1.5">
           <span className="col-span-4 sm:col-span-3">{t.time}</span>
           <span className="col-span-3 sm:col-span-3">用户</span>
           <span className="col-span-2 sm:col-span-2">{t.action}</span>
-          <span className="col-span-3 sm:col-span-4 text-right">{t.price}</span>
+          <span className="col-span-3 sm:col-span-4 text-right">价格 ({quoteAsset})</span>
         </div>
 
         <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 font-mono text-xs">
-          {allOrderHistory.length === 0 ? (
+          {processedOrderHistory.length === 0 ? (
             <p className="text-xs text-gray-400 py-4 text-center">{t.noData}</p>
           ) : (
-            allOrderHistory.map(oh => {
+            processedOrderHistory.map(oh => {
               const dt = formatSmartDateTime(oh.T);
               const isMine = currentAccount && oh.u === currentAccount;
+              const isBuyOrder = oh.orderSide === 'buy';
 
               return (
                 <div 
@@ -588,7 +625,7 @@ export const Market: React.FC = () => {
                     </Link>
                   </div>
 
-                  <div className="col-span-2 sm:col-span-2">
+                  <div className="col-span-2 sm:col-span-2 flex items-center gap-1">
                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-extrabold ${
                       oh.t === 1 
                         ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30' 
@@ -598,10 +635,14 @@ export const Market: React.FC = () => {
                     }`}>
                       {oh.t === 1 ? t.placeOrder : (oh.t === 77 ? t.updateOrder : t.cancelOrder)}
                     </span>
+                    <span className={`text-[9px] font-bold px-1 rounded ${isBuyOrder ? 'text-emerald-500 bg-emerald-500/10' : 'text-red-500 bg-red-500/10'}`}>
+                      {isBuyOrder ? '买' : '卖'}
+                    </span>
                   </div>
 
-                  <span className="col-span-3 sm:col-span-4 text-right font-bold text-gray-900 dark:text-gray-100">
-                    {formatSignificantPrice(oh.p)}
+                  {/* 🌟 价格按买单(绿色) / 卖单(红色) 高亮区分，数值统一到当前页面的 quote/base 计价 */}
+                  <span className={`col-span-3 sm:col-span-4 text-right font-black ${isBuyOrder ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {formatSignificantPrice(oh.unifiedPrice)}
                   </span>
                 </div>
               );
